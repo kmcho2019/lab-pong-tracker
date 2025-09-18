@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const currentUser = session.user;
 
   const body = await request.json();
   const parsed = matchPayloadSchema.safeParse(body);
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
         playedAt: payload.playedAt ? new Date(payload.playedAt) : new Date(),
         location: payload.location,
         note: payload.note,
-        enteredById: session.user.id,
+        enteredById: currentUser.id,
         teams: {
           create: [{ teamNo: 1 }, { teamNo: 2 }]
         }
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
 
     await tx.auditLog.create({
       data: {
-        actorId: session.user.id,
+        actorId: currentUser.id,
         matchId: created.id,
         message: 'MATCH_CREATED',
         metadata: payload as any

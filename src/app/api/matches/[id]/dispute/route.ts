@@ -15,6 +15,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const currentUser = session.user;
 
   const payload = await request.json().catch(() => ({}));
   const reason = typeof payload?.reason === 'string' ? payload.reason.slice(0, 280) : null;
@@ -30,8 +31,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Match not found' }, { status: 404 });
   }
 
-  const isParticipant = match.participants.some((participant) => participant.userId === session.user.id);
-  const isAdmin = session.user.role === 'ADMIN';
+  const isParticipant = match.participants.some((participant) => participant.userId === currentUser.id);
+  const isAdmin = currentUser.role === 'ADMIN';
 
   if (!isParticipant && !isAdmin) {
     return NextResponse.json({ error: 'Only participants can dispute matches' }, { status: 403 });
@@ -48,7 +49,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     await tx.auditLog.create({
       data: {
-        actorId: session.user.id,
+        actorId: currentUser.id,
         matchId: match.id,
         message: 'MATCH_DISPUTED',
         metadata: reason ? { reason } : undefined

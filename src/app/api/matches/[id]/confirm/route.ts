@@ -16,6 +16,7 @@ export async function POST(request: Request, context: RouteContext) {
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const currentUser = session.user;
 
   const match = await prisma.match.findUnique({
     where: { id: context.params.id },
@@ -34,8 +35,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Match is not pending confirmation' }, { status: 409 });
   }
 
-  const isParticipant = match.participants.some((participant) => participant.userId === session.user.id);
-  const isAdmin = session.user.role === 'ADMIN';
+  const isParticipant = match.participants.some((participant) => participant.userId === currentUser.id);
+  const isAdmin = currentUser.role === 'ADMIN';
 
   if (!isParticipant && !isAdmin) {
     return NextResponse.json({ error: 'Only participants can confirm matches' }, { status: 403 });
@@ -46,14 +47,14 @@ export async function POST(request: Request, context: RouteContext) {
       where: { id: match.id },
       data: {
         status: MatchStatus.CONFIRMED,
-        confirmedById: session.user.id,
+        confirmedById: currentUser.id,
         confirmedAt: new Date()
       }
     });
 
     await tx.auditLog.create({
       data: {
-        actorId: session.user.id,
+        actorId: currentUser.id,
         matchId: match.id,
         message: 'MATCH_CONFIRMED'
       }

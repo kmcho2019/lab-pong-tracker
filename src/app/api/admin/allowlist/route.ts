@@ -10,6 +10,7 @@ export async function GET() {
   if (!session?.user || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const currentUser = session.user;
 
   const emails = await prisma.allowlistEmail.findMany({
     orderBy: { createdAt: 'desc' }
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     create: {
       email,
       note: typeof body.note === 'string' ? body.note : undefined,
-      addedById: session.user.id
+      addedById: currentUser.id
     }
   });
 
