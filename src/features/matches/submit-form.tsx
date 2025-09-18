@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { z } from 'zod';
 import { matchPayloadSchema } from '@/lib/validators';
+import { toLeagueIso } from '@/utils/time';
 
 interface UserOption {
   id: string;
@@ -59,7 +60,7 @@ export function SubmitMatchForm() {
         team2Score,
         targetPoints: target,
         winByMargin: winBy,
-        playedAt: playedAt ? new Date(playedAt).toISOString() : undefined,
+        playedAt: playedAt ? toLeagueIso(playedAt) : undefined,
         location: location || undefined,
         note: note || undefined
       });
@@ -76,6 +77,7 @@ export function SubmitMatchForm() {
     },
     onSuccess: () => {
       setSuccess('Match logged!');
+      setPlayedAt('');
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['players'] });
       queryClient.invalidateQueries({ queryKey: ['matches'] });

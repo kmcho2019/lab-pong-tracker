@@ -110,18 +110,35 @@ export default async function HistoryPage({ searchParams }: HistoryPageProps) {
                     {match.team1Score} – {match.team2Score}
                   </td>
                   <td className="py-2">
-                    {team1.concat(team2).map((participant) => (
-                      <div key={participant.id} className="flex justify-between">
-                        <Link href={`/players/${participant.user.username}`} className="text-blue-500 hover:underline">
-                          {participant.user.displayName}
-                        </Link>
-                        <span className={participant.ratingAfter && participant.ratingBefore && participant.ratingAfter >= participant.ratingBefore ? 'text-emerald-500' : 'text-rose-500'}>
-                          {participant.ratingAfter && participant.ratingBefore
-                            ? Math.round(participant.ratingAfter - participant.ratingBefore)
-                            : '—'}
-                        </span>
-                      </div>
-                    ))}
+                    {team1.concat(team2).map((participant) => {
+                      const before = participant.ratingBefore;
+                      const after = participant.ratingAfter;
+                      const hasRatings = typeof before === 'number' && typeof after === 'number';
+                      const beforeValue = hasRatings ? (before as number) : null;
+                      const afterValue = hasRatings ? (after as number) : null;
+                      const delta = hasRatings && beforeValue !== null && afterValue !== null ? Math.round(afterValue - beforeValue) : null;
+                      const trendClass = delta === null ? 'text-slate-400' : delta >= 0 ? 'text-emerald-500' : 'text-rose-500';
+
+                      return (
+                        <div key={participant.id} className="flex items-center justify-between gap-3">
+                          <Link href={`/players/${participant.user.username}`} className="text-blue-500 hover:underline">
+                            {participant.user.displayName}
+                          </Link>
+                          {hasRatings && beforeValue !== null && afterValue !== null ? (
+                            <div className="text-right">
+                              <span className="text-slate-500 dark:text-slate-300">
+                                {Math.round(beforeValue)} → {Math.round(afterValue)}
+                              </span>
+                              <span className={`ml-2 font-semibold ${trendClass}`}>
+                                {delta !== null && delta > 0 ? `+${delta}` : delta}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </td>
                   <td className="py-2 text-slate-500">{match.location ?? '—'}</td>
                 </tr>

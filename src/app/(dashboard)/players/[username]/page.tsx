@@ -70,7 +70,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                   <th className="pb-2">Date</th>
                   <th className="pb-2">Opponent(s)</th>
                   <th className="pb-2">Score</th>
-                  <th className="pb-2">Δ Rating</th>
+                  <th className="pb-2">Rating</th>
                 </tr>
               </thead>
               <tbody>
@@ -80,9 +80,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                   const playerOnTeam1 = team1.some((participant) => participant.userId === player.id);
                   const playerParticipant = match.participants.find((participant) => participant.userId === player.id);
                   const opponentTeam = playerOnTeam1 ? team2 : team1;
-                  const delta = playerParticipant?.ratingAfter && playerParticipant?.ratingBefore
-                    ? Math.round(playerParticipant.ratingAfter - playerParticipant.ratingBefore)
-                    : null;
+                  const hasRatings = typeof playerParticipant?.ratingBefore === 'number' && typeof playerParticipant?.ratingAfter === 'number';
+                  const beforeValue = hasRatings ? Number(playerParticipant?.ratingBefore) : null;
+                  const afterValue = hasRatings ? Number(playerParticipant?.ratingAfter) : null;
+                  const delta = hasRatings && beforeValue !== null && afterValue !== null ? Math.round(afterValue - beforeValue) : null;
 
                   return (
                     <tr key={match.id} className="border-t border-slate-100 dark:border-slate-700">
@@ -102,12 +103,17 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                         {match.team1Score} – {match.team2Score}
                       </td>
                       <td className="py-2">
-                        {delta !== null ? (
-                          <span className={delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
-                            {delta >= 0 ? `+${delta}` : delta}
-                          </span>
+                        {hasRatings && beforeValue !== null && afterValue !== null ? (
+                          <div className="text-right">
+                            <span className="text-slate-500 dark:text-slate-300">
+                              {Math.round(beforeValue)} → {Math.round(afterValue)}
+                            </span>
+                            <span className={`ml-2 font-semibold ${delta === null ? 'text-slate-400' : delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {delta !== null && delta > 0 ? `+${delta}` : delta}
+                            </span>
+                          </div>
                         ) : (
-                          '—'
+                          <span className="text-slate-400">—</span>
                         )}
                       </td>
                     </tr>
@@ -130,9 +136,10 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
                   <Link href={`/players/${record.opponent.username}`} className="font-medium hover:underline">
                     {record.opponent.displayName}
                   </Link>
-                  <span>
-                    {record.wins}-{record.losses}
-                  </span>
+                  <div className="text-right">
+                    <span className="font-semibold">{record.wins}-{record.losses}</span>
+                    <div className="text-xs text-slate-500 dark:text-slate-300">Singles {record.singlesWins}-{record.singlesLosses}</div>
+                  </div>
                 </li>
               ))
             )}

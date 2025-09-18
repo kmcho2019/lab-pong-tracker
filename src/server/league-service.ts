@@ -1,4 +1,4 @@
-import { MatchStatus } from '@prisma/client';
+import { MatchStatus, MatchType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 export async function getLeaderboard(scope: 'active' | 'all' = 'active') {
@@ -98,6 +98,8 @@ export async function getPlayerProfile(identifier: string) {
       };
       wins: number;
       losses: number;
+      singlesWins: number;
+      singlesLosses: number;
       lastPlayedAt: Date;
     }
   >();
@@ -109,6 +111,7 @@ export async function getPlayerProfile(identifier: string) {
     const playerTeam = playerOnTeam1 ? team1 : team2;
     const opponentTeam = playerOnTeam1 ? team2 : team1;
     const didWin = (playerOnTeam1 ? match.team1Score : match.team2Score) > (playerOnTeam1 ? match.team2Score : match.team1Score);
+    const isSingles = match.matchType === MatchType.SINGLES;
 
     for (const opponent of opponentTeam) {
       const record = headToHead.get(opponent.userId) ?? {
@@ -119,12 +122,16 @@ export async function getPlayerProfile(identifier: string) {
         },
         wins: 0,
         losses: 0,
+        singlesWins: 0,
+        singlesLosses: 0,
         lastPlayedAt: match.playedAt
       };
       if (didWin) {
         record.wins += 1;
+        if (isSingles) record.singlesWins += 1;
       } else {
         record.losses += 1;
+        if (isSingles) record.singlesLosses += 1;
       }
       record.lastPlayedAt = match.playedAt;
       headToHead.set(opponent.userId, record);
