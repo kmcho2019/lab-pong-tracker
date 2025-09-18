@@ -2,6 +2,7 @@ import { getServerSession, type DefaultSession, type NextAuthOptions } from 'nex
 import GoogleProvider from 'next-auth/providers/google';
 import GithubProvider from 'next-auth/providers/github';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
+import type { AdapterUser } from 'next-auth/adapters';
 import type { User } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
@@ -30,7 +31,7 @@ async function isEmailAllowlisted(email?: string | null) {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: createAdapterWithUsername(),
   session: {
     strategy: 'database'
   },
@@ -78,4 +79,48 @@ export const authOptions: NextAuthOptions = {
 
 export async function auth() {
   return getServerSession(authOptions);
+}
+
+const DEFAULT_USERNAME = 'player';
+const USERNAME_BASE_LENGTH = 24;
+
+function createAdapterWithUsername() {
+  const baseAdapter = PrismaAdapter(prisma);
+
+  return {
+    ...baseAdapter,
+    async createUser(user) {
+      const username = await generateUniqueUsername(user);
+      return prisma.user.create({
+        data: {
+          ...user,
+          username
+        }
+      });
+    }
+  };
+}
+
+async function generateUniqueUsername(user: AdapterUser) {
+  const seed = user.name?.toString().trim() || user.email?.split('@')[0] || DEFAULT_USERNAME;
+  const base = (slugify(seed) || DEFAULT_USERNAME).slice(0, USERNAME_BASE_LENGTH);
+
+  let candidate = base;
+  let counter = 1;
+
+  while (await prisma.user.findUnique({ where: { username: candidate } })) {
+    candidate = `${base}-${counter++}`;
+  }
+
+  return candidate;
+}
+
+function slugify(input: string) {
+  return input
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-+/g, '-');
 }
