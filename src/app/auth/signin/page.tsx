@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/server/auth';
+import { SignInButton } from '@/components/sign-in-button';
 
 const providers = [
   { id: 'google', name: 'Google' },
@@ -24,13 +25,11 @@ export default async function SignInPage() {
         </p>
         <div className="mt-6 space-y-3">
           {providers.map((provider) => (
-            <a
+            <SignInButton
               key={provider.id}
-              href={`/api/auth/signin/${provider.id}`}
-              className="flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 px-4 py-2 font-medium text-slate-700 shadow hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200"
-            >
-              Continue with {provider.name}
-            </a>
+              providerId={provider.id}
+              providerName={provider.name}
+            />
           ))}
         </div>
       </div>
