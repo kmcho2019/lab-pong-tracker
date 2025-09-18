@@ -7,7 +7,7 @@ This beginner-friendly guide walks through creating, editing, and managing `.env
 A `.env` file stores key/value pairs that configure the app without hardcoding secrets in source code. Example:
 
 ```
-DATABASE_URL=postgresql://user:password@localhost:5432/lab_pong?schema=public
+DATABASE_URL=postgresql://user:password@db:5432/lab_pong?schema=public
 NEXTAUTH_SECRET=your-secret
 ```
 
@@ -21,9 +21,9 @@ The application reads these values at runtime (via `dotenv` or Next.js). The fil
    ```
 2. Open `.env` in your editor (`nano .env`, `code .env`, etc.).
 3. Fill in each variable:
-   - `DATABASE_URL`: connection string to Postgres (see below).
+   - `DATABASE_URL`: connection string to Postgres (`postgresql://...@db:5432/...` when using Docker).
    - `NEXTAUTH_URL`: usually `http://localhost:3000` in development.
-   - `NEXTAUTH_SECRET`: generate via `openssl rand -base64 32`.
+   - `NEXTAUTH_SECRET`: generate via `openssl rand -base64 32` (required for NextAuth in production).
    - OAuth IDs/secrets: from Google/GitHub developer consoles.
    - `EMAIL_ALLOWLIST`: optional comma-separated emails for initial access.
 4. Save the file.
@@ -31,7 +31,7 @@ The application reads these values at runtime (via `dotenv` or Next.js). The fil
 ## 3. Example Values (Local Development)
 
 ```
-DATABASE_URL=postgresql://user:password@localhost:5432/lab_pong?schema=public
+DATABASE_URL=postgresql://user:password@db:5432/lab_pong?schema=public
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=change-me-please-32-characters
 GOOGLE_CLIENT_ID=your-google-client-id
@@ -49,9 +49,9 @@ EMAIL_ALLOWLIST=admin@example.com,player@example.com
 
 ## 5. Multiple Environments
 
-- `.env` – default (development).
-- `.env.local` – overrides `.env` locally.
-- `.env.production` – production overrides.
+- `.env` – default (development and Docker Compose).
+- `.env.local` – overrides `.env` locally; ignored by git.
+- `.env.production` – production overrides for self-hosted deployments.
 
 Next.js loads `.env`, `.env.local`, `.env.development`, `.env.production` automatically.
 
