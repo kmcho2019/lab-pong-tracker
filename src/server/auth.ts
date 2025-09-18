@@ -2,7 +2,7 @@ import { getServerSession, type DefaultSession, type NextAuthOptions } from 'nex
 import GoogleProvider from 'next-auth/providers/google';
 import GithubProvider from 'next-auth/providers/github';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import type { AdapterUser } from 'next-auth/adapters';
+import type { Adapter, AdapterUser } from 'next-auth/adapters';
 import type { User } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
@@ -82,23 +82,45 @@ export async function auth() {
 }
 
 const DEFAULT_USERNAME = 'player';
+const DEFAULT_DISPLAY_NAME = 'Player';
 const USERNAME_BASE_LENGTH = 24;
 
-function createAdapterWithUsername() {
+function createAdapterWithUsername(): Adapter {
   const baseAdapter = PrismaAdapter(prisma);
 
   return {
     ...baseAdapter,
     async createUser(user) {
+      if (!user.email) {
+        throw new Error('Cannot create user without an email address');
+      }
+
       const username = await generateUniqueUsername(user);
-      return prisma.user.create({
+      const displayName = deriveDisplayName(user);
+
+      const created = await prisma.user.create({
         data: {
-          ...user,
+          email: user.email,
+          image: user.image,
+          displayName,
           username
         }
       });
+
+      return {
+        id: created.id,
+        name: created.displayName,
+        email: created.email,
+        emailVerified: null,
+        image: created.image
+      } satisfies AdapterUser;
     }
   };
+}
+
+function deriveDisplayName(user: AdapterUser) {
+  const seed = user.name?.toString().trim() || user.email?.split('@')[0] || DEFAULT_DISPLAY_NAME;
+  return seed.normalize('NFC');
 }
 
 async function generateUniqueUsername(user: AdapterUser) {
