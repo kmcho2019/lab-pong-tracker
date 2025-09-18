@@ -23,6 +23,7 @@ export async function POST(request: Request) {
   if (!session?.user || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const currentUser = session.user;
 
   const body = await request.json().catch(() => ({}));
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : null;
