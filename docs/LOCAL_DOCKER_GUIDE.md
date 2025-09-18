@@ -162,7 +162,72 @@ Retrieve a single player profile:
 curl http://localhost:3000/api/users/<player-id> | jq
 ```
 
-## 11. Stopping and Cleaning Up
+## 11. Restarting Services
+
+### 11.1 Restart Web Container
+
+```bash
+docker compose restart web
+```
+
+### 11.2 Restart Database Only
+
+```bash
+docker compose restart db
+```
+
+### 11.3 Full Stack Restart
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+> After a Windows reboot, run `docker compose up -d db web` to bring services back.
+
+## 12. Backups & Restores
+
+### 12.1 Create Backup (pg_dump)
+
+```bash
+docker compose exec db pg_dump -U user -d lab_pong > backups/lab_pong-$(date +%F).sql
+```
+
+### 12.2 Restore Backup
+
+```bash
+cat backups/lab_pong-2025-09-18.sql | docker compose exec -T db psql -U user -d lab_pong
+```
+
+### 12.3 Scheduled Backups (cron)
+
+```
+0 2 * * * docker compose exec db pg_dump -U user -d lab_pong > /home/<you>/TableTennisWebDev/backups/lab_pong-$(date +\%F).sql
+```
+
+## 13. Migrating Data to Another Service
+
+### 13.1 Export from Docker DB
+
+Use `pg_dump` as above.
+
+### 13.2 Import into Remote PostgreSQL
+
+```bash
+psql postgresql://prod_user:prod_pass@prod-host:5432/lab_pong < lab_pong-backup.sql
+```
+
+You can also migrate table-by-table:
+
+```bash
+psql postgresql://... -c "\copy \"User\" to 'users.csv' csv"
+```
+
+### 13.3 Update Environment
+
+Set the new `DATABASE_URL`, redeploy, and run `npx prisma migrate deploy` on the target environment.
+
+## 14. Stopping and Cleaning Up
 
 ```bash
 docker compose down
@@ -178,7 +243,7 @@ npx prisma migrate deploy
 npm run db:seed
 ```
 
-## 12. Troubleshooting
+## 15. Troubleshooting
 
 | Issue | Fix |
 | --- | --- |
