@@ -190,10 +190,12 @@ function buildChart(history: Array<{ playedAt: Date | string | null; rating: num
 
   const yTickCount = 5;
   const yTicks = Array.from({ length: yTickCount }, (_, index) => {
-    const value = minRating + ((yTickCount - 1 - index) / Math.max(yTickCount - 1, 1)) * ratingRange;
+    const ratio = index / Math.max(yTickCount - 1, 1);
+    const value = minRating + ratio * ratingRange;
     const y =
-      dimensions.padding +
-      ((yTickCount - 1 - index) / Math.max(yTickCount - 1, 1)) * (dimensions.height - dimensions.padding * 2);
+      dimensions.height -
+      dimensions.padding -
+      ratio * (dimensions.height - dimensions.padding * 2);
     return { y, label: Math.round(value).toString() };
   });
 
