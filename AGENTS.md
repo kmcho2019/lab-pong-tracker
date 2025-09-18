@@ -22,10 +22,9 @@ The rest of the system (Glicko‑2, history, profiles, rankings, admin, recomput
 
 1. **Auth & Allowlist** → user can access `/submit`.
 2. **Submit a game** (Singles or Doubles): select players via searchable dropdowns; enter `team1Score`, `team2Score`; optional target and win‑by margin (defaults 11 & 2).  
-3. Server validates payload, creates `Match(status=PENDING)` with a single game score (no child `Game` rows).  
-4. **Confirmation**: any opponent confirms → `CONFIRMED`.  
-5. **Rating update**: Glicko‑2 updates run on confirmation.  
-6. Users see updates on **Leaderboard**, **Profile**, and **History**.
+3. Server validates payload, creates a confirmed `Match` row with the single game score (no child `Game` rows).  
+4. **Instant rating update**: Glicko‑2 updates run immediately after write.  
+5. Users see updates on **Leaderboard**, **Profile**, and **History** right away.
 
 ---
 
@@ -87,7 +86,7 @@ model Match {
   seasonId      String?
   season        Season?      @relation(fields: [seasonId], references: [id])
   matchType     MatchType
-  status        MatchStatus  @default(PENDING)
+  status        MatchStatus  @default(CONFIRMED)
   resultType    ResultType   @default(NORMAL)
   // Single‑game fields (no Game table)
   team1Score    Int          @default(0)
@@ -222,7 +221,7 @@ model AuditLog {
   "note": "optional"
 }
 ```
-- **Response 201:** `{ matchId, status: "PENDING" }`
+- **Response 201:** `{ matchId, status: "CONFIRMED" }`
 
 ### POST `/api/matches/:id/confirm`
 - Body optional `{ "accept": true }` → transitions to `CONFIRMED` if caller is on opposing side (or any participant in relaxed mode).
@@ -240,7 +239,7 @@ model AuditLog {
 
 ## 6) Rating Engine — single‑game integration
 
-- **Trigger:** on `CONFIRMED`.  
+- **Trigger:** immediately after match creation (`status=CONFIRMED`).  
 - **Singles:** standard Glicko‑2 between two players.  
 - **Doubles:** team average method (μ avg; φ via sqrt(mean of variances)/2). Apply equal Δ to teammates; update each player’s RD/volatility independently.  
 - **Inactivity:** nightly RD inflation toward cap (e.g., 350).  
@@ -272,7 +271,7 @@ model AuditLog {
 
 ## 9) Admin & Moderation
 
-- Allowlist CSV import; toggle relaxed vs. strict confirmation.  
+- Allowlist CSV import; optional confirmation toggle (defaults to auto-confirm).  
 - Edit game: change scores, participants, date → triggers recompute dry‑run + apply.  
 - Delete game: soft‑delete (status `CANCELLED`) → recompute.  
 - Audit log for all actions.
@@ -282,7 +281,7 @@ model AuditLog {
 ## 10) Security & Ops
 
 - Auth.js OAuth; allowlist enforced server‑side.  
-- Rate limit submissions/confirmations.  
+- Rate limit submissions and disputes.  
 - Advisory lock around rating writes/recompute.  
 - Backups nightly; Sentry/pino logs; health check endpoint.  
 - Docker compose with Postgres and (optional) Redis.
@@ -295,7 +294,7 @@ model AuditLog {
 - **Validation:** win‑by‑2, custom targets (e.g., 15, 21), doubles duplicate prevention, future timestamps reject.  
 - **Rating math:** fixtures for singles and doubles; equal Δ application; RD inflation after inactivity.  
 - **Recompute:** edit old game and verify downstream ratings change deterministically.  
-- **E2E:** mobile submit flow; pending confirmation → confirm → leaderboard update.
+- **E2E:** mobile submit flow; instant leaderboard update.
 
 ---
 

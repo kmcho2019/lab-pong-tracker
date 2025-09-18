@@ -75,7 +75,7 @@ export function SubmitMatchForm() {
       return response.json();
     },
     onSuccess: () => {
-      setSuccess('Match logged! Waiting for confirmation.');
+      setSuccess('Match logged!');
       setError(null);
       queryClient.invalidateQueries({ queryKey: ['players'] });
       queryClient.invalidateQueries({ queryKey: ['matches'] });

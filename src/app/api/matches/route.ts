@@ -3,6 +3,7 @@ import { MatchStatus, ResultType } from '@prisma/client';
 import { auth } from '@/server/auth';
 import { matchPayloadSchema } from '@/lib/validators';
 import { prisma } from '@/lib/prisma';
+import { applyRatingsForMatch } from '@/server/rating-engine';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     const created = await tx.match.create({
       data: {
         matchType: payload.matchType,
-        status: MatchStatus.PENDING,
+        status: MatchStatus.CONFIRMED,
         resultType: ResultType.NORMAL,
         team1Score: payload.team1Score,
         team2Score: payload.team2Score,
@@ -44,6 +45,8 @@ export async function POST(request: Request) {
         location: payload.location,
         note: payload.note,
         enteredById: currentUser.id,
+        confirmedById: currentUser.id,
+        confirmedAt: new Date(),
         teams: {
           create: [{ teamNo: 1 }, { teamNo: 2 }]
         }
@@ -83,17 +86,21 @@ export async function POST(request: Request) {
       }
     });
 
-    return tx.match.findUnique({
-      where: { id: created.id },
-      include: {
-        participants: {
-          include: { user: true, team: true }
-        }
-      }
-    });
+    return created;
   });
 
-  return NextResponse.json({ match }, { status: 201 });
+  await applyRatingsForMatch(match.id);
+
+  const hydrated = await prisma.match.findUnique({
+    where: { id: match.id },
+    include: {
+      participants: {
+        include: { user: true, team: true }
+      }
+    }
+  });
+
+  return NextResponse.json({ match: hydrated }, { status: 201 });
 }
 
 export async function GET(request: Request) {

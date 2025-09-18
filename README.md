@@ -1,6 +1,6 @@
 # Lab Table Tennis League Tracker
 
-A full-stack Next.js application for our lab’s single-game table tennis league. Players authenticate via OAuth, log singles or doubles results, confirm opponents’ submissions, and watch Glicko-2 ratings evolve on the leaderboard, history, and profile pages. Admins manage the allowlist, trigger league-wide recomputes, and audit every change.
+A full-stack Next.js application for our lab’s single-game table tennis league. Players authenticate via OAuth, log singles or doubles results, and watch Glicko-2 ratings evolve instantly on the leaderboard, history, and profile pages. Admins manage the allowlist, trigger league-wide recomputes, and audit every change.
 
 > The original product specification (v2.1) remains below for reference. Everything above that line reflects the working implementation.
 
@@ -14,8 +14,8 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 ## Feature Overview
 
 - **Secure sign-in** with OAuth and email allowlist gate.
-- **Single or double match submission** with win-by validation, rich form, and optimistic UI.
-- **Confirmation workflow** (`PENDING → CONFIRMED/DISPUTED`) that triggers Glicko-2 updates and match audit logs.
+- **Single or double match submission** with win-by validation, rich form, optimistic UI, and instant rating updates.
+- **Dispute workflow** (`CONFIRMED → DISPUTED/CANCELLED`) available to admins if an entry needs correction.
 - **Leaderboards & history** showing rating, RD, streak, head-to-head records, and enriched match deltas.
 - **Player spotlight** pages with rating sparklines, recent matches, and per-opponent summaries.
 - **Admin console** to manage the allowlist and kick off deterministic league recomputes.
@@ -160,15 +160,13 @@ All lab members.
   * Forfeits/walkovers allowed via special result type (no game scores required).
 * **Status workflow:**
 
-  * `PENDING` on creation → visible with “pending” flag.
-  * Any *one* opponent confirmation (default) or *all* participants (strict mode toggle in admin) moves to `CONFIRMED`.
-  * `DISPUTED` if an opponent rejects; requires admin resolution.
-  * `CANCELLED` if withdrawn before confirmation.
+  * Default policy: matches auto-confirm on submission (`CONFIRMED`) so standings update immediately.
+  * Admin tooling can flip a record to `PENDING`, `DISPUTED`, or `CANCELLED` if an investigation or correction is needed.
 
-**Auto‑rating update**
+**Auto-rating update**
 
-* Ratings update **on confirmation** (not on initial submission) to deter spam and mistakes.
-* If strict “instant” updates are required, run update on submission but display “provisional pending confirmation”; on rejection, roll back via recompute (see recomputation section).
+* Ratings update **on submission** because matches are confirmed immediately.
+* If the league ever re-enables manual confirmation, swap the flag and ratings will apply once a match returns to `CONFIRMED`.
 
 **History & search**
 
@@ -178,7 +176,6 @@ All lab members.
 
 **Edit/Delete**
 
-* Submitter can edit while `PENDING`.
 * Admin can edit/delete **any** result; action is logged and triggers recompute from the earliest affected match date.
 
 #### **2.3. Rankings & Leaderboard (expanded)**
@@ -213,7 +210,7 @@ All lab members.
 * **`/` Dashboard**
 
   * Panel cards: current rating & RD (with 95% interval), rank within active players, last 5 matches with deltas, “Submit Match” CTA, top‑5 leaderboard, quick links (My Profile, Rankings, History).
-  * If `PENDING` matches involve the user, show “Confirm/Dispute” inline.
+  * Surface the latest submissions with rating deltas for quick review.
 
 * **`/submit`**
 
@@ -588,7 +585,7 @@ model AuditLog {
 * **Achievements & Badges**: stored in `UserBadge` table with rules engine (cron evaluates).
 * **H2H view**: `/compare` page already defined.
 * **Tournament mode**: add `Tournament`, `Round`, `Seed`, `Match` linkage; single‑elim and RR.
-* **Notifications**: Slack webhook on `CONFIRMED` match; “pending confirmations” daily digest.
+* **Notifications**: Slack webhook on new matches; optional daily digest of recent results.
 * **Doubles partner stats**: materialized view `PartnerStats` (userA, userB, wins, losses).
 * **Seasons**: admin can archive a season; new season resets leaderboards (ratings either carry over or reset—configurable).
 
@@ -645,7 +642,7 @@ model AuditLog {
 
 **E2E tests (Playwright)**
 
-* Mobile viewport submission; pending confirmation; dispute flow; leaderboard sorting and filters; profile chart rendering.
+* Mobile viewport submission; instantaneous leaderboard updates; dispute flow; leaderboard sorting and filters; profile chart rendering.
 
 **Performance**
 
@@ -700,7 +697,7 @@ model AuditLog {
 
 ## Quick Answers to Likely Questions
 
-* **Why update ratings on confirmation (not submission)?** Prevents spam/typos impacting standings; you still get “pending” visibility for transparency.
+* **Why auto-confirm on submission?** Keeps standings live while relying on admins to correct any erroneous entries using the dispute tools.
 * **How do we handle editing old matches?** Use the replay engine; it’s the simplest correct approach for Glicko‑2.
 * **Do doubles distort ratings?** Team averaging is simple and consistent; by documenting the exact μ/φ averaging rule, you’ll keep the system predictable.
 
