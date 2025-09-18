@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum MatchType {
+  SINGLES
+  DOUBLES
+}
+
+enum MatchStatus {
+  PENDING
+  CONFIRMED
+  DISPUTED
+  CANCELLED
+}
+
+enum ResultType {
+  NORMAL
+  FORFEIT
+  WALKOVER
+  RETIRED
+}
+
+enum SeasonStatus {
+  ACTIVE
+  ARCHIVED
+  FUTURE
+}
+
+model User {
+  id               String              @id @default(cuid())
+  username         String              @unique
+  displayName      String
+  email            String              @unique
+  image            String?
+  role             Role                @default(USER)
+  active           Boolean             @default(true)
+  glickoRating     Float               @default(1500)
+  glickoRd         Float               @default(350)
+  glickoVolatility Float               @default(0.06)
+  lastMatchAt      DateTime?
+  wins             Int                 @default(0)
+  losses           Int                 @default(0)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  accounts         Account[]
+  sessions         Session[]
+  participants     MatchParticipant[]
+  ratingHistory    RatingHistory[]
+  matchesEntered   Match[]             @relation("enteredBy")
+  matchesConfirmed Match[]             @relation("confirmedBy")
+  allowlistAdded   AllowlistEmail[]    @relation("addedBy")
+  auditLogs        AuditLog[]
+
+  @@index([active])
+}
+
+model AllowlistEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  note      String?
+  addedById String?
+  addedBy   User?    @relation("addedBy", fields: [addedById], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Season {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  status    SeasonStatus @default(ACTIVE)
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime     @default(now())
+  matches   Match[]
+}
+
+model Match {
+  id            String        @id @default(cuid())
+  seasonId      String?
+  season        Season?       @relation(fields: [seasonId], references: [id])
+  matchType     MatchType
+  status        MatchStatus   @default(PENDING)
+  resultType    ResultType    @default(NORMAL)
+  team1Score    Int           @default(0)
+  team2Score    Int           @default(0)
+  targetPoints  Int           @default(11)
+  winByMargin   Int           @default(2)
+  playedAt      DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  location      String?
+  note          String?
+  enteredById   String
+  enteredBy     User          @relation("enteredBy", fields: [enteredById], references: [id])
+  confirmedById String?
+  confirmedBy   User?         @relation("confirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt   DateTime?
+  cancelledAt   DateTime?
+  disputeReason String?
+  teams         MatchTeam[]
+  participants  MatchParticipant[]
+  ratingUpdates RatingHistory[]
+  auditLogs     AuditLog[]
+
+  @@index([status, playedAt])
+  @@index([playedAt])
+}
+
+model MatchTeam {
+  id      String             @id @default(cuid())
+  matchId String
+  teamNo  Int
+  match   Match              @relation(fields: [matchId], references: [id])
+  players MatchParticipant[]
+
+  @@unique([matchId, teamNo])
+}
+
+model MatchParticipant {
+  id        String   @id @default(cuid())
+  matchId   String
+  userId    String
+  teamId    String?
+  outcome   ResultType?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ratingBefore Float?
+  ratingAfter  Float?
+  rdBefore     Float?
+  rdAfter      Float?
+
+  match Match @relation(fields: [matchId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+  team  MatchTeam? @relation(fields: [teamId], references: [id])
+
+  @@index([userId])
+  @@index([matchId, userId])
+}
+
+model RatingHistory {
+  id         String   @id @default(cuid())
+  userId     String
+  matchId    String?
+  rating     Float
+  rd         Float
+  volatility Float
+  deltaMu    Float
+  deltaSigma Float
+  createdAt  DateTime @default(now())
+  playedAt   DateTime
+
+  user  User  @relation(fields: [userId], references: [id])
+  match Match? @relation(fields: [matchId], references: [id])
+
+  @@index([userId])
+  @@index([matchId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  matchId   String?
+  message   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  actor User?  @relation(fields: [actorId], references: [id])
+  match Match? @relation(fields: [matchId], references: [id])
+
+  @@index([matchId])
+}
+
+model RecomputeJob {
+  id        String   @id @default(cuid())
+  requestedAt DateTime @default(now())
+  startedAt DateTime?
+  completedAt DateTime?
+  status    String   @default("PENDING")
+  note      String?
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}

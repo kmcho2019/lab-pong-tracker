@@ -1,8 +1,61 @@
 # Lab Table Tennis League Tracker
 
-A lightweight Node.js web app for logging singles matches, computing Elo ratings, and surfacing head-to-head stats for the lab. It ships with seed data, JSON persistence, and a static dashboard UI.
+A full-stack Next.js application for our lab’s single-game table tennis league. Players authenticate via OAuth, log singles or doubles results, confirm opponents’ submissions, and watch Glicko-2 ratings evolve on the leaderboard, history, and profile pages. Admins manage the allowlist, trigger league-wide recomputes, and audit every change.
 
-> The detailed product spec from version 2.1 is preserved below for future expansion.
+> The original product specification (v2.1) remains below for reference. Everything above that line reflects the working implementation.
+
+## Stack
+
+- **Frontend**: Next.js App Router, Server Components, Tailwind.
+- **API / Auth**: Next.js route handlers with NextAuth (Google + GitHub), allowlist enforcement.
+- **Data**: PostgreSQL via Prisma with single-game match schema and audit trail.
+- **Ratings**: In-process Glicko-2 engine with doubles support, rating history, and recompute utility.
+
+## Feature Overview
+
+- **Secure sign-in** with OAuth and email allowlist gate.
+- **Single or double match submission** with win-by validation, rich form, and optimistic UI.
+- **Confirmation workflow** (`PENDING → CONFIRMED/DISPUTED`) that triggers Glicko-2 updates and match audit logs.
+- **Leaderboards & history** showing rating, RD, streak, head-to-head records, and enriched match deltas.
+- **Player spotlight** pages with rating sparklines, recent matches, and per-opponent summaries.
+- **Admin console** to manage the allowlist and kick off deterministic league recomputes.
+
+## Local Development
+
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
+2. **Configure environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+   - Set `DATABASE_URL` to your Postgres instance (the provided `docker-compose.yml` runs PostgreSQL on port `5432`).
+   - Generate a `NEXTAUTH_SECRET` (`openssl rand -base64 32`) and add OAuth client IDs/secrets.
+3. **Start Postgres** (either locally or via Docker):
+   ```bash
+   docker compose up -d db
+   ```
+4. **Run Prisma migrations + seed demo data**
+   ```bash
+   npx prisma migrate deploy
+   npm run db:seed
+   ```
+5. **Launch the dev server**
+   ```bash
+   npm run dev
+   ```
+   The app is available at <http://localhost:3000>. Sign in with an allowlisted email, submit a match, confirm it from the opponent’s account, and watch ratings update in real time.
+
+> `npm run build` and any route that touches the database require a reachable `DATABASE_URL`. Keep the Postgres container running (or supply an external connection string) when building or running in production mode.
+
+## Deployment Notes
+
+- **Hosting**: Vercel, Fly.io, or any Node-capable platform. Ensure Postgres is reachable and `NEXTAUTH_URL` reflects the deployed URL.
+- **Environment**: Provide OAuth credentials, `NEXTAUTH_SECRET`, and optionally `EMAIL_ALLOWLIST` for initial bootstrap.
+- **Migrations**: Run `npm run prisma:migrate` (deploy) during deploy, followed by `npm run db:seed` if you need demo data.
+- **Background tasks**: The recompute utility executes synchronously today; for high volume you can schedule it via a Cron job hitting `/api/admin/recompute`.
+
 
 Below is an expanded, implementation‑ready specification that keeps your original vision intact while tightening rules, clarifying edge cases, and adding the pieces you’ll need to build confidently (schema details, API contracts, validation, and ops). I’ve preserved your sectioning and versioned this as **2.1** so you can diff easily.
 
