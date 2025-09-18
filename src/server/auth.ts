@@ -80,15 +80,13 @@ export const authOptions: NextAuthOptions = {
   }
 };
 
-const authHandler = NextAuth(authOptions);
+const authKit = NextAuth(authOptions);
 
-export const {
-  handlers: { GET: authGet, POST: authPost },
-  signIn,
-  signOut
-} = authHandler;
+export const { auth, signIn, signOut } = authKit;
 
-export const authHandlers = { GET: authGet, POST: authPost };
+export const authHandlers = authKit.handlers;
+export const authGet = authHandlers.GET;
+export const authPost = authHandlers.POST;
 
 export async function auth() {
   return getServerSession(authOptions);
