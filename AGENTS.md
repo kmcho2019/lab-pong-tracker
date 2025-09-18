@@ -178,7 +178,7 @@ model AuditLog {
   1. Try transliteration (ICU) from Hangul to Latin;  
   2. Fallback to `uXXXX` hex segments;  
   3. Ensure uniqueness with numeric suffix.  
-- **Examples:** `displayName="김철수"` → `username="gim-cheolsu"`; `displayName="홍길동"` → `username="hong-gildong"`.
+- **Timezone:** Persist timestamps in UTC but render/accept inputs as `Asia/Seoul` via shared Day.js helpers (see `toLeagueIso`, `formatDate`).  
 
 ---
 

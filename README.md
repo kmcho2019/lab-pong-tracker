@@ -16,6 +16,7 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 - **Secure sign-in** with OAuth and email allowlist gate.
 - **Single or double match submission** with win-by validation, rich form, optimistic UI, and instant rating updates.
 - **Dispute workflow** (`CONFIRMED → DISPUTED/CANCELLED`) available to admins if an entry needs correction.
+- **Match history & profiles** show rating before/after with deltas plus interactive KST-aware charts.
 - **Leaderboards & history** showing rating, RD, streak, head-to-head records, and enriched match deltas.
 - **Player spotlight** pages with rating sparklines, recent matches, and per-opponent summaries.
 - **Admin console** to manage the allowlist and kick off deterministic league recomputes.
@@ -68,6 +69,12 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 - **Background tasks**: The recompute utility executes synchronously today; for high volume you can schedule it via a Cron job hitting `/api/admin/recompute`.
 
 For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOSTING.md`](docs/HOSTING.md). For database procedures, refer to [`docs/DB_OPERATIONS.md`](docs/DB_OPERATIONS.md). If you are new to environment variables, read [`docs/ENV_SETUP.md`](docs/ENV_SETUP.md). For a WSL2/Windows Docker walkthrough, see [`docs/LOCAL_DOCKER_GUIDE.md`](docs/LOCAL_DOCKER_GUIDE.md).
+
+## Timezone Handling
+
+- All match timestamps persist in UTC but render in Asia/Seoul (KST) using shared Day.js timezone helpers.
+- The submit form converts local KST inputs via `toLeagueIso` before sending to the API.
+- Dashboard widgets (history, profiles, charts) rely on the same helpers so dates match what players entered.
 
 ## Testing
 
@@ -173,6 +180,7 @@ All lab members.
 * Filter by date range, player, opponent, singles/doubles, result type, status.
 * Pagination (cursor‑based).
 * Export CSV.
+* Per-player rating journey appears inline (before → after with delta).
 
 **Edit/Delete**
 

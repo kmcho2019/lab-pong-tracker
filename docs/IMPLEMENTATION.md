@@ -15,7 +15,7 @@ This document captures the state of the Lab Table Tennis League tracker as imple
 | Roadmap area                            | Status | Notes |
 | --------------------------------------- | ------ | ----- |
 | Auth + allowlist foundations            | ✅     | OAuth sign-in, middleware gate, allowlist CRUD UI/API, audit log on sign-in (`src/server/auth.ts`, `src/app/(dashboard)/admin/page.tsx`). |
-| Match submission & auto-confirmation    | ✅     | Zod validation, instant rating updates, dispute tooling, audit entries, client form with doubles support (`src/features/matches/submit-form.tsx`, `src/app/api/matches/**/*.ts`). |
+| Match submission & auto-confirmation    | ✅     | Zod validation, instant rating updates, dispute tooling, audit entries, client form with doubles support, KST timezone helpers (`src/features/matches/submit-form.tsx`, `src/app/api/matches/**/*.ts`). |
 | Glicko-2 rating engine & profiles       | ✅     | Singles/doubles updates, rating history, head-to-head summaries, player page with sparkline (`src/server/rating-engine.ts`, `src/features/players/rating-sparkline.tsx`). |
 | Leaderboard & history views             | ✅     | Dynamic tables, filters, recent matches modules (`src/app/(dashboard)/page.tsx`, `src/app/(dashboard)/history/page.tsx`). |
 | Admin tooling & recompute               | ✅     | Allowlist manager, recompute endpoint, audit logs, middleware protection (`src/app/api/admin/**/*.ts`, `src/server/recompute.ts`). |
@@ -38,3 +38,15 @@ This document captures the state of the Lab Table Tennis League tracker as imple
 - `prisma` – Database schema, SQL migration, data seeding.
 
 Refer back to `README.md` for setup/deployment instructions and to `AGENTS.md` for the original specification.
+
+## Timezone Handling
+
+- Shared Day.js utility (`src/utils/time.ts`) pins the default zone to Asia/Seoul and provides `toLeagueIso` for submissions.
+- All UI formatters call `formatDate`/`formatDistanceToNow` so timestamps remain consistent across SSR and client hydration.
+- Tests cover the conversion helpers (`tests/time.test.ts`).
+
+## Rating Presentation Enhancements
+
+- History and profile tables now show rating before → after plus deltas for each participant.
+- Player sparkline renders axes, gridlines, hover tooltip, and KST timestamps for easier analysis.
+- Head-to-head summaries include singles-only breakdown built in `getPlayerProfile`.

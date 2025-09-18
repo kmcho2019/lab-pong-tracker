@@ -22,7 +22,7 @@ export function formatDate(value: Date | string | null, format = 'YYYY-MM-DD HH:
 }
 
 export function toLeagueIso(localDateTime: string) {
-  return dayjs.tz(localDateTime, 'YYYY-MM-DDTHH:mm').toISOString();
+  return dayjs.tz(localDateTime, 'YYYY-MM-DDTHH:mm', LEAGUE_TIMEZONE).toISOString();
 }
 
 export { dayjs as leagueDayjs };
