@@ -67,7 +67,7 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 - **Migrations**: Run `npm run prisma:migrate` (deploy) during deploy, followed by `npm run db:seed` if you need demo data.
 - **Background tasks**: The recompute utility executes synchronously today; for high volume you can schedule it via a Cron job hitting `/api/admin/recompute`.
 
-For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOSTING.md`](docs/HOSTING.md). For database procedures, refer to [`docs/DB_OPERATIONS.md`](docs/DB_OPERATIONS.md). If you are new to environment variables, read [`docs/ENV_SETUP.md`](docs/ENV_SETUP.md).
+For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOSTING.md`](docs/HOSTING.md). For database procedures, refer to [`docs/DB_OPERATIONS.md`](docs/DB_OPERATIONS.md). If you are new to environment variables, read [`docs/ENV_SETUP.md`](docs/ENV_SETUP.md). For a WSL2/Windows Docker walkthrough, see [`docs/LOCAL_DOCKER_GUIDE.md`](docs/LOCAL_DOCKER_GUIDE.md).
 
 ## Testing
 
