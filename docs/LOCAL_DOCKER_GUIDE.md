@@ -28,12 +28,12 @@ cp .env.example .env
 nano .env
 ```
 
-Suggested development values:
+Suggested development values (replace secrets before running):
 
 ```
 DATABASE_URL=postgresql://user:password@db:5432/lab_pong?schema=public
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=generate-a-32-char-secret
+NEXTAUTH_SECRET=$(openssl rand -base64 32)
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 GITHUB_CLIENT_ID=your-github-client-id
@@ -43,6 +43,7 @@ EMAIL_ALLOWLIST=your.email@example.com
 
 - Keep the database hostname as `db`; Docker Compose creates that service name.
 - Add any colleagues’ emails to `EMAIL_ALLOWLIST` (comma-separated). They can be edited later via the admin UI.
+- The `.env` file is automatically loaded by `docker compose`.
 
 ## 4. Start the Stack
 
@@ -77,10 +78,10 @@ To build the production image and start the web container:
 
 ```bash
 docker compose build web
-NEXTAUTH_SECRET=$(openssl rand -base64 32) docker compose up -d web
+docker compose up -d
 ```
 
-The app is exposed on `http://localhost:3000`. Docker Desktop forwards Windows <→ WSL automatically. Visit the URL in a browser on Windows.
+Set `NEXTAUTH_SECRET` and other values in `.env` before running `docker compose up`. The app is exposed on `http://localhost:3000`. Docker Desktop forwards Windows ↔ WSL automatically.
 
 > Ensure `NEXTAUTH_URL` in `.env` matches `http://localhost:3000` during local testing.
 

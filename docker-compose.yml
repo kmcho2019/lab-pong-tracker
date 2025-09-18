@@ -8,11 +8,11 @@ services:
     build: . # Build the image from the Dockerfile in the current directory
     ports:
       - "3000:3000" # Map port 3000 on your local machine to port 3000 in the container
-    volumes:
-      - .:/app # <-- THIS IS THE DIRECTORY MOUNT
-      - /app/node_modules # This prevents the local node_modules from overwriting the container's
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/mydb
+      - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/mydb}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
     depends_on:
       - db # This service will wait for the 'db' service to be ready before starting
 
