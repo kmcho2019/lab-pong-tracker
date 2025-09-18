@@ -82,8 +82,7 @@ export const authOptions: NextAuthOptions = {
 
 const authKit = NextAuth(authOptions);
 
-export const { auth, signIn, signOut } = authKit;
-
+export const { signIn, signOut } = authKit;
 export const authHandlers = authKit.handlers;
 export const authGet = authHandlers.GET;
 export const authPost = authHandlers.POST;
