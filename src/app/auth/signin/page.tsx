@@ -24,14 +24,13 @@ export default async function SignInPage() {
         </p>
         <div className="mt-6 space-y-3">
           {providers.map((provider) => (
-            <form key={provider.id} action={`/api/auth/signin/${provider.id}`} method="post">
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 px-4 py-2 font-medium text-slate-700 shadow hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200"
-              >
-                Continue with {provider.name}
-              </button>
-            </form>
+            <a
+              key={provider.id}
+              href={`/api/auth/signin/${provider.id}`}
+              className="flex w-full items-center justify-center gap-3 rounded-full border border-slate-200 px-4 py-2 font-medium text-slate-700 shadow hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200"
+            >
+              Continue with {provider.name}
+            </a>
           ))}
         </div>
       </div>
