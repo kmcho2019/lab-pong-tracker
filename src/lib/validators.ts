@@ -7,12 +7,14 @@ export const scoreSchema = z.object({
   team2Score: z.number().int().min(0)
 });
 
+const userIdSchema = z.string().min(3).max(64).regex(/^[A-Za-z0-9_-]+$/, { message: 'Invalid player id format' });
+
 export const matchPayloadSchema = z
   .object({
     matchType: z.enum(['SINGLES', 'DOUBLES']),
     seasonId: z.string().optional(),
-    team1: z.array(z.string().cuid()).nonempty(),
-    team2: z.array(z.string().cuid()).nonempty(),
+    team1: z.array(userIdSchema).nonempty(),
+    team2: z.array(userIdSchema).nonempty(),
     team1Score: z.number().int(),
     team2Score: z.number().int(),
     targetPoints: z.number().int().optional(),
