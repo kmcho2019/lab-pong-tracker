@@ -3,8 +3,11 @@ import GoogleProvider from 'next-auth/providers/google';
 import GithubProvider from 'next-auth/providers/github';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import type { Adapter, AdapterUser } from 'next-auth/adapters';
+
 import type { User } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+
+type AdapterUserCreateInput = Omit<AdapterUser, 'id'>;
 
 declare module 'next-auth' {
   interface Session extends DefaultSession {
@@ -90,7 +93,7 @@ function createAdapterWithUsername(): Adapter {
 
   return {
     ...baseAdapter,
-    async createUser(user) {
+    async createUser(user: AdapterUserCreateInput) {
       if (!user.email) {
         throw new Error('Cannot create user without an email address');
       }
@@ -118,12 +121,12 @@ function createAdapterWithUsername(): Adapter {
   };
 }
 
-function deriveDisplayName(user: AdapterUser) {
+function deriveDisplayName(user: AdapterUserCreateInput) {
   const seed = user.name?.toString().trim() || user.email?.split('@')[0] || DEFAULT_DISPLAY_NAME;
   return seed.normalize('NFC');
 }
 
-async function generateUniqueUsername(user: AdapterUser) {
+async function generateUniqueUsername(user: AdapterUserCreateInput) {
   const seed = user.name?.toString().trim() || user.email?.split('@')[0] || DEFAULT_USERNAME;
   const base = (slugify(seed) || DEFAULT_USERNAME).slice(0, USERNAME_BASE_LENGTH);
 
