@@ -1,4 +1,8 @@
-import NextAuth, { type DefaultSession } from 'next-auth';
+import NextAuth, {
+  getServerSession,
+  type DefaultSession,
+  type NextAuthOptions
+} from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import GithubProvider from 'next-auth/providers/github';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
@@ -29,7 +33,7 @@ async function isEmailAllowlisted(email?: string | null) {
   return allowed;
 }
 
-export const { handlers: authHandlers, auth, signIn, signOut } = NextAuth({
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: 'database'
@@ -74,4 +78,12 @@ export const { handlers: authHandlers, auth, signIn, signOut } = NextAuth({
       });
     }
   }
-});
+};
+
+const authHandler = NextAuth(authOptions);
+
+export const { handlers: authHandlers, signIn, signOut } = authHandler;
+
+export async function auth() {
+  return getServerSession(authOptions);
+}

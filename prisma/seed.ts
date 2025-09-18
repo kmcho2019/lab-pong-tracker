@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { PrismaClient, MatchStatus, MatchType } from '@prisma/client';
 import { recomputeLeague } from '@/server/recompute';
 

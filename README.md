@@ -49,12 +49,35 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 
 > `npm run build` and any route that touches the database require a reachable `DATABASE_URL`. Keep the Postgres container running (or supply an external connection string) when building or running in production mode.
 
+## Signing In
+
+1. Visit `/auth/signin` or click **Sign in** in the header.
+2. Choose Google or GitHub OAuth.
+3. Only emails present in the allowlist are permitted:
+   - Seeded via `EMAIL_ALLOWLIST` env var or the admin console.
+   - If blocked, contact an admin to add your email at `/admin`.
+4. After authentication, you are redirected to the leaderboard with your display name rating badge in the header.
+
+> Admins are distinguished by the `role` column in the `User` table—set to `ADMIN` via seed or database update.
+
 ## Deployment Notes
 
 - **Hosting**: Vercel, Fly.io, or any Node-capable platform. Ensure Postgres is reachable and `NEXTAUTH_URL` reflects the deployed URL.
 - **Environment**: Provide OAuth credentials, `NEXTAUTH_SECRET`, and optionally `EMAIL_ALLOWLIST` for initial bootstrap.
 - **Migrations**: Run `npm run prisma:migrate` (deploy) during deploy, followed by `npm run db:seed` if you need demo data.
 - **Background tasks**: The recompute utility executes synchronously today; for high volume you can schedule it via a Cron job hitting `/api/admin/recompute`.
+
+For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOSTING.md`](docs/HOSTING.md). For database procedures, refer to [`docs/DB_OPERATIONS.md`](docs/DB_OPERATIONS.md). If you are new to environment variables, read [`docs/ENV_SETUP.md`](docs/ENV_SETUP.md).
+
+## Testing
+
+- `npm run lint` – ESLint (Next.js config).
+- `npm run test` – Vitest suite covering Glicko-2 helpers and payload validation.
+- `npm run build` – Compiles and type-checks the application (requires the database to be reachable).
+
+## Admin & Database Operations
+
+See [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md) for allowlist management, recomputes, migration/backup procedures, and troubleshooting tips tailored for lab admins.
 
 
 Below is an expanded, implementation‑ready specification that keeps your original vision intact while tightening rules, clarifying edge cases, and adding the pieces you’ll need to build confidently (schema details, API contracts, validation, and ops). I’ve preserved your sectioning and versioned this as **2.1** so you can diff easily.
