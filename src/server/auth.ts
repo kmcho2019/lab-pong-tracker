@@ -1,13 +1,9 @@
-import NextAuth, {
-  getServerSession,
-  type DefaultSession,
-  type NextAuthOptions
-} from 'next-auth';
+import { getServerSession, type DefaultSession, type NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import GithubProvider from 'next-auth/providers/github';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
-import { prisma } from '@/lib/prisma';
 import type { User } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 declare module 'next-auth' {
   interface Session extends DefaultSession {
@@ -79,13 +75,6 @@ export const authOptions: NextAuthOptions = {
     }
   }
 };
-
-const authKit = NextAuth(authOptions);
-
-export const { signIn, signOut } = authKit;
-export const authHandlers = authKit.handlers;
-export const authGet = authHandlers.GET;
-export const authPost = authHandlers.POST;
 
 export async function auth() {
   return getServerSession(authOptions);
