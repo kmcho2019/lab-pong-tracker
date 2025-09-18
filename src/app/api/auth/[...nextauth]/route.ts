@@ -1,1 +1,1 @@
-export { authHandlers as GET, authHandlers as POST } from '@/server/auth';
+export { authGet as GET, authPost as POST } from '@/server/auth';

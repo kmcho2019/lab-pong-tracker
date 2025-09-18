@@ -82,7 +82,13 @@ export const authOptions: NextAuthOptions = {
 
 const authHandler = NextAuth(authOptions);
 
-export const { handlers: authHandlers, signIn, signOut } = authHandler;
+export const {
+  handlers: { GET: authGet, POST: authPost },
+  signIn,
+  signOut
+} = authHandler;
+
+export const authHandlers = { GET: authGet, POST: authPost };
 
 export async function auth() {
   return getServerSession(authOptions);
