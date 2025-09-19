@@ -14,7 +14,8 @@ export const runtime = 'nodejs';
 
 export async function PATCH(request: Request, context: RouteContext) {
   const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
+  const admin = session?.user;
+  if (!admin || admin.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -61,7 +62,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         playedAt: newPlayedAt,
         location: payload.location,
         note: payload.note,
-        confirmedById: session.user.id,
+        confirmedById: admin.id,
         confirmedAt: new Date(),
         cancelledAt: null,
         disputeReason: null
@@ -85,7 +86,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     await tx.auditLog.create({
       data: {
-        actorId: session.user.id,
+        actorId: admin.id,
         matchId: match.id,
         message: 'MATCH_EDITED',
         metadata: payload as any
@@ -100,7 +101,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(request: Request, context: RouteContext) {
   const session = await auth();
-  if (!session?.user || session.user.role !== 'ADMIN') {
+  const admin = session?.user;
+  if (!admin || admin.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -131,7 +133,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     await tx.auditLog.create({
       data: {
-        actorId: session.user.id,
+        actorId: admin.id,
         matchId: match.id,
         message: 'MATCH_CANCELLED'
       }
