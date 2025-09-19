@@ -3,8 +3,22 @@
 import { useMemo, useState } from 'react';
 import { leagueDayjs, LEAGUE_TIMEZONE } from '@/utils/time';
 
+interface RatingSparklineHistoryPoint {
+  playedAt: Date | string | null;
+  rating: number;
+  matchId?: string | null;
+  matchInfo: {
+    id: string;
+    score: string;
+    result: 'Win' | 'Loss';
+    matchType: 'SINGLES' | 'DOUBLES';
+    opponents: string[];
+    teammates: string[];
+  } | null;
+}
+
 interface RatingSparklineProps {
-  history: Array<{ playedAt: Date | string | null; rating: number }>;
+  history: RatingSparklineHistoryPoint[];
 }
 
 type ChartPoint = {
@@ -12,6 +26,7 @@ type ChartPoint = {
   y: number;
   rating: number;
   playedAt: string;
+  matchInfo: RatingSparklineHistoryPoint['matchInfo'];
 };
 
 type ChartTicks = {
@@ -135,13 +150,32 @@ export function RatingSparkline({ history }: RatingSparklineProps) {
           <div className="mt-1 text-[10px] text-slate-200">
             {leagueDayjs(hoveredPoint.playedAt).tz(LEAGUE_TIMEZONE).format('YYYY-MM-DD HH:mm')}
           </div>
+          {hoveredPoint.matchInfo ? (
+            <>
+              <div className="mt-1 text-[10px] text-slate-200">
+                {hoveredPoint.matchInfo.result} vs{' '}
+                {hoveredPoint.matchInfo.opponents.length > 0
+                  ? hoveredPoint.matchInfo.opponents.join(' / ')
+                  : 'Unknown opponent'}
+              </div>
+              <div className="text-[10px] text-slate-200">
+                Score {hoveredPoint.matchInfo.score} ·
+                {hoveredPoint.matchInfo.matchType === 'SINGLES' ? ' Singles' : ' Doubles'}
+              </div>
+              {hoveredPoint.matchInfo.teammates.length > 0 ? (
+                <div className="text-[10px] text-slate-400">
+                  With {hoveredPoint.matchInfo.teammates.join(' / ')}
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>
   );
 }
 
-function buildChart(history: Array<{ playedAt: Date | string | null; rating: number }>): {
+function buildChart(history: RatingSparklineHistoryPoint[]): {
   points: ChartPoint[];
   ticks: ChartTicks;
 } {
@@ -149,7 +183,8 @@ function buildChart(history: Array<{ playedAt: Date | string | null; rating: num
     .filter((entry) => entry.playedAt)
     .map((entry) => ({
       playedAt: leagueDayjs(entry.playedAt!).tz(LEAGUE_TIMEZONE),
-      rating: entry.rating
+      rating: entry.rating,
+      matchInfo: entry.matchInfo
     }))
     .sort((a, b) => a.playedAt.valueOf() - b.playedAt.valueOf());
 
@@ -184,7 +219,8 @@ function buildChart(history: Array<{ playedAt: Date | string | null; rating: num
       x,
       y,
       rating: entry.rating,
-      playedAt: entry.playedAt.toISOString()
+      playedAt: entry.playedAt.toISOString(),
+      matchInfo: entry.matchInfo
     };
   });
 

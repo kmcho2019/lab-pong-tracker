@@ -65,7 +65,16 @@ export async function getPlayerProfile(identifier: string) {
     include: {
       ratingHistory: {
         orderBy: { playedAt: 'asc' },
-        take: 200
+        take: 200,
+        include: {
+          match: {
+            include: {
+              participants: {
+                include: { user: true, team: true }
+              }
+            }
+          }
+        }
       }
     }
   });
@@ -86,6 +95,41 @@ export async function getPlayerProfile(identifier: string) {
         include: { user: true, team: true }
       }
     }
+  });
+
+  const ratingHistory = player.ratingHistory.map((entry) => {
+    const match = entry.match;
+    if (!match) {
+      return {
+        playedAt: entry.playedAt,
+        rating: entry.rating,
+        matchId: entry.matchId,
+        matchInfo: null
+      };
+    }
+
+    const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
+    const team2 = match.participants.filter((participant) => participant.team?.teamNo === 2);
+    const playerOnTeam1 = team1.some((participant) => participant.userId === player.id);
+    const playerTeam = playerOnTeam1 ? team1 : team2;
+    const opponentTeam = playerOnTeam1 ? team2 : team1;
+    const didWin = (playerOnTeam1 ? match.team1Score : match.team2Score) > (playerOnTeam1 ? match.team2Score : match.team1Score);
+
+    return {
+      playedAt: entry.playedAt,
+      rating: entry.rating,
+      matchId: entry.matchId,
+      matchInfo: {
+        id: match.id,
+        score: `${match.team1Score} – ${match.team2Score}` as string,
+        result: didWin ? 'Win' : 'Loss',
+        matchType: match.matchType,
+        opponents: opponentTeam.map((participant) => participant.user.displayName),
+        teammates: playerTeam
+          .filter((participant) => participant.userId !== player.id)
+          .map((participant) => participant.user.displayName)
+      }
+    };
   });
 
   const headToHead = new Map<
@@ -139,7 +183,10 @@ export async function getPlayerProfile(identifier: string) {
   }
 
   return {
-    player,
+    player: {
+      ...player,
+      ratingHistory
+    },
     matches,
     headToHead: Array.from(headToHead.values()).sort((a, b) => a.opponent.displayName.localeCompare(b.opponent.displayName, 'ko'))
   };
