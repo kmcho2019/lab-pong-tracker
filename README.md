@@ -19,7 +19,7 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 - **Match history & profiles** show rating before/after with deltas plus interactive KST-aware charts.
 - **Leaderboards & history** showing rating, RD, streak, head-to-head records, and enriched match deltas.
 - **Player spotlight** pages with rating sparklines, recent matches, and per-opponent summaries.
-- **Admin console** to manage the allowlist and kick off deterministic league recomputes.
+- **Admin console** to manage the allowlist, edit/cancel matches, and kick off deterministic league recomputes.
 
 ## Local Development
 
@@ -83,6 +83,13 @@ For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOST
 - `npm run build` – Compiles and type-checks the application (requires the database to be reachable).
 
 ## Admin & Database Operations
+
+### Match Management
+
+- Visit `/admin` (admins only) to access the **Match Management** panel.
+- Update scores, participants, or metadata—ratings recompute automatically after saving.
+- Use *Cancel match* to soft-delete incorrect entries; recompute runs immediately to remove prior rating impact.
+- All actions are captured in the audit log for traceability.
 
 See [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md) for allowlist management, recomputes, migration/backup procedures, and troubleshooting tips tailored for lab admins.
 
