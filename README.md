@@ -84,6 +84,14 @@ For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOST
 
 ## Admin & Database Operations
 
+### Automatic migrations
+
+- `npm run start` now executes `scripts/ensure-migrate.js`, which runs `prisma migrate deploy` when `DATABASE_URL` is set.
+- Set `SKIP_PRISMA_MIGRATE=1` or run `npm run start:strict` (fails hard on migration errors) to control behaviour.
+- In Docker, the same script runs before `next start`, so local stacks pick up schema changes automatically.
+- For CI/hosting, make sure credentials are available so the script can apply migrations before the app serves traffic.
+
+
 ### Match Management
 
 - Visit `/admin` (admins only) to access the **Match Management** panel.

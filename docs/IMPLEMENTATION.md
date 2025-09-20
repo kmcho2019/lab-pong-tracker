@@ -56,3 +56,9 @@ Refer back to `README.md` for setup/deployment instructions and to `AGENTS.md` f
 - `/admin` now exposes a Match Management panel for editing or cancelling confirmed matches.
 - Edits call the REST endpoint (`PATCH /api/admin/matches/:id`) which rebuilds participants, logs the change, and triggers a full recompute.
 - Cancellations hit (`DELETE /api/admin/matches/:id`), mark the match as `CANCELLED`, and rerun the ladder so historical ratings stay accurate.
+
+## Automatic migrations
+
+- `scripts/ensure-migrate.js` runs before `npm run start` to apply pending Prisma migrations.
+- Disable with `SKIP_PRISMA_MIGRATE=1` or enforce failure with `PRISMA_AUTO_MIGRATE_STRICT=1`.
+- Docker and CI environments can rely on this hook instead of manual migrate commands.

@@ -15,7 +15,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     notFound();
   }
 
-  const { player, matches, headToHead, ratingTimeline, summary } = profile;
+  const { matches, headToHead, ratingTimeline, summary } = profile;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
