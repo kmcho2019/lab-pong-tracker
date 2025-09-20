@@ -72,6 +72,8 @@ model User {
   matchesEntered   Match[]             @relation("enteredBy")
   matchesConfirmed Match[]             @relation("confirmedBy")
   allowlistAdded   AllowlistEmail[]    @relation("addedBy")
+  tournamentsCreated Tournament[]      @relation("TournamentCreatedBy")
+  tournamentParticipants TournamentParticipant[] @relation("TournamentParticipantUser")
   auditLogs        AuditLog[]
 
   @@index([active])
@@ -119,7 +121,7 @@ model Match {
   confirmedAt   DateTime?
   cancelledAt   DateTime?
   disputeReason String?
-  tournamentMatchId String?
+  tournamentMatchId String? @unique
   tournamentMatch   TournamentMatch? @relation("MatchTournamentLink", fields: [tournamentMatchId], references: [id])
   teams         MatchTeam[]
   participants  MatchParticipant[]
@@ -232,7 +234,7 @@ model Tournament {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   createdById   String
-  createdBy     User             @relation(fields: [createdById], references: [id])
+  createdBy     User             @relation("TournamentCreatedBy", fields: [createdById], references: [id])
   groups        TournamentGroup[]
   participants  TournamentParticipant[]
   matches       TournamentMatch[]
@@ -250,7 +252,7 @@ model TournamentParticipant {
   createdAt    DateTime    @default(now())
 
   tournament Tournament @relation(fields: [tournamentId], references: [id])
-  user       User        @relation(fields: [userId], references: [id])
+  user       User        @relation("TournamentParticipantUser", fields: [userId], references: [id])
   group      TournamentGroup? @relation(fields: [groupId], references: [id])
 
   @@unique([tournamentId, userId])
