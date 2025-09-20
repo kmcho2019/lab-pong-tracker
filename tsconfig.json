@@ -28,6 +28,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@/types/*": [
+        "types/*"
       ]
     },
     "plugins": [
