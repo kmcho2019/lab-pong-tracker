@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { recomputeLeague } from '@/server/recompute';
+import { recomputeLeague } from '../src/server/recompute';
 
 async function main() {
   const fromEnv = process.env.PRISMA_RECOMPUTE_FROM;

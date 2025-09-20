@@ -5,7 +5,7 @@ CREATE TYPE "TournamentStatus" AS ENUM ('SCHEDULED', 'ACTIVE', 'COMPLETED', 'CAN
 CREATE TYPE "TournamentMatchStatus" AS ENUM ('SCHEDULED', 'PLAYED', 'CANCELLED');
 
 CREATE TABLE "Tournament" (
-  "id" TEXT PRIMARY KEY DEFAULT cuid(),
+  "id" TEXT PRIMARY KEY,
   "name" TEXT NOT NULL,
   "mode" "TournamentMode" NOT NULL,
   "status" "TournamentStatus" NOT NULL DEFAULT 'SCHEDULED',
@@ -21,7 +21,7 @@ CREATE INDEX "Tournament_status_idx" ON "Tournament"("status");
 CREATE INDEX "Tournament_startAt_idx" ON "Tournament"("startAt");
 
 CREATE TABLE "TournamentGroup" (
-  "id" TEXT PRIMARY KEY DEFAULT cuid(),
+  "id" TEXT PRIMARY KEY,
   "tournamentId" TEXT NOT NULL,
   "name" TEXT NOT NULL,
   "tableLabel" TEXT NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE "TournamentGroup" (
 CREATE UNIQUE INDEX "TournamentGroup_tournamentId_name_key" ON "TournamentGroup"("tournamentId", "name");
 
 CREATE TABLE "TournamentParticipant" (
-  "id" TEXT PRIMARY KEY DEFAULT cuid(),
+  "id" TEXT PRIMARY KEY,
   "tournamentId" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "seed" INTEGER,
@@ -45,7 +45,7 @@ CREATE UNIQUE INDEX "TournamentParticipant_tournamentId_userId_key" ON "Tourname
 CREATE INDEX "TournamentParticipant_groupId_idx" ON "TournamentParticipant"("groupId");
 
 CREATE TABLE "TournamentMatch" (
-  "id" TEXT PRIMARY KEY DEFAULT cuid(),
+  "id" TEXT PRIMARY KEY,
   "tournamentId" TEXT NOT NULL,
   "groupId" TEXT NOT NULL,
   "scheduledAt" TIMESTAMP(3),
@@ -61,5 +61,7 @@ CREATE INDEX "TournamentMatch_status_idx" ON "TournamentMatch"("status");
 ALTER TABLE "Match"
   ADD COLUMN "tournamentMatchId" TEXT,
   ADD CONSTRAINT "Match_tournamentMatchId_fkey" FOREIGN KEY ("tournamentMatchId") REFERENCES "TournamentMatch"("id") ON DELETE SET NULL;
+
+CREATE UNIQUE INDEX "Match_tournamentMatchId_key" ON "Match"("tournamentMatchId");
 
 COMMIT;
