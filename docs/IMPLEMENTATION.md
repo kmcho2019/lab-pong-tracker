@@ -61,4 +61,5 @@ Refer back to `README.md` for setup/deployment instructions and to `AGENTS.md` f
 
 - `scripts/ensure-migrate.js` runs before `npm run start` to apply pending Prisma migrations.
 - Disable with `SKIP_PRISMA_MIGRATE=1` or enforce failure with `PRISMA_AUTO_MIGRATE_STRICT=1`.
+- Migrations now trigger a ratings replay by default; set `PRISMA_AUTO_RECOMPUTE=0` to skip the recompute step.
 - Docker and CI environments can rely on this hook instead of manual migrate commands.

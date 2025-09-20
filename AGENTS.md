@@ -282,7 +282,7 @@ model AuditLog {
 
 - Auth.js OAuth; allowlist enforced server‑side.  
 - Rate limit submissions and disputes.  
-- Automatic migration hook ensures `prisma migrate deploy` runs on server start (configurable via env).  
+- Automatic migration hook ensures `prisma migrate deploy` runs on server start (configurable via env) and replays ratings by default (set `PRISMA_AUTO_RECOMPUTE=0` to skip).  
 - Advisory lock around rating writes/recompute.  
 - Backups nightly; Sentry/pino logs; health check endpoint.  
 - Docker compose with Postgres and (optional) Redis.

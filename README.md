@@ -87,7 +87,7 @@ For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOST
 ### Automatic migrations
 
 - `npm run start` now executes `scripts/ensure-migrate.js`, which runs `prisma migrate deploy` when `DATABASE_URL` is set.
-- Set `SKIP_PRISMA_MIGRATE=1` or run `npm run start:strict` (fails hard on migration errors) to control behaviour.
+- Set `SKIP_PRISMA_MIGRATE=1` to bypass or use `npm run start:strict` to fail hard on migration errors. Migrations now trigger a ratings replay by default; set `PRISMA_AUTO_RECOMPUTE=0` to skip or `PRISMA_AUTO_MIGRATE_STRICT=1` to fail on errors.
 - In Docker, the same script runs before `next start`, so local stacks pick up schema changes automatically.
 - For CI/hosting, make sure credentials are available so the script can apply migrations before the app serves traffic.
 
