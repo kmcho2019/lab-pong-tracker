@@ -29,7 +29,19 @@ export async function recomputeLeague(fromDate?: Date) {
         glickoVolatility: 0.06,
         wins: 0,
         losses: 0,
-        lastMatchAt: null
+        lastMatchAt: null,
+        singlesRating: 1500,
+        singlesRd: 350,
+        singlesVolatility: 0.06,
+        singlesWins: 0,
+        singlesLosses: 0,
+        singlesLastMatchAt: null,
+        doublesRating: 1500,
+        doublesRd: 350,
+        doublesVolatility: 0.06,
+        doublesWins: 0,
+        doublesLosses: 0,
+        doublesLastMatchAt: null
       }
     });
   });

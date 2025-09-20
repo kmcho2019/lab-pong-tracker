@@ -52,104 +52,55 @@ export async function getLeaderboard(
     }));
   }
 
-  const matchType = mode === 'singles' ? MatchType.SINGLES : MatchType.DOUBLES;
-  const matches = await prisma.match.findMany({
-    where: {
-      status: MatchStatus.CONFIRMED,
-      matchType
-    },
-    orderBy: { playedAt: 'asc' },
-    include: {
-      participants: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              username: true,
-              displayName: true,
-              active: true
-            }
-          },
-          team: true
-        }
-      }
+  const where = scope === 'active' ? { active: true } : {};
+  const orderBy = mode === 'singles'
+    ? [{ singlesRating: 'desc' as const }, { singlesRd: 'asc' as const }, { displayName: 'asc' as const }]
+    : [{ doublesRating: 'desc' as const }, { doublesRd: 'asc' as const }, { displayName: 'asc' as const }];
+
+  const users = await prisma.user.findMany({
+    where,
+    orderBy,
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      singlesRating: true,
+      singlesRd: true,
+      singlesWins: true,
+      singlesLosses: true,
+      singlesLastMatchAt: true,
+      doublesRating: true,
+      doublesRd: true,
+      doublesWins: true,
+      doublesLosses: true,
+      doublesLastMatchAt: true
     }
   });
 
-  type InternalState = {
-    id: string;
-    username: string;
-    displayName: string;
-    active: boolean;
-    rating: number;
-    rd: number;
-    wins: number;
-    losses: number;
-    lastMatchAt: string | null;
-  };
-
-  const states = new Map<string, InternalState>();
-
-  matches.forEach((match) => {
-    const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
-    const team2 = match.participants.filter((participant) => participant.team?.teamNo === 2);
-    const team1Won = match.team1Score > match.team2Score;
-
-    const allParticipants = [...team1, ...team2];
-
-    allParticipants.forEach((participant) => {
-      const user = participant.user;
-      const isTeam1 = participant.team?.teamNo === 1;
-      const didWin = isTeam1 ? team1Won : !team1Won;
-      const ratingAfter = participant.ratingAfter ?? participant.ratingBefore ?? 1500;
-      const rdAfter = participant.rdAfter ?? participant.rdBefore ?? 350;
-
-      const existing = states.get(user.id) ?? {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        active: user.active,
-        rating: 1500,
-        rd: 350,
-        wins: 0,
-        losses: 0,
-        lastMatchAt: null
-      };
-
-      existing.rating = ratingAfter;
-      existing.rd = rdAfter;
-      existing.lastMatchAt = match.playedAt.toISOString();
-      if (didWin) {
-        existing.wins += 1;
-      } else {
-        existing.losses += 1;
-      }
-
-      states.set(user.id, existing);
-    });
+  const filtered = users.filter((user) => {
+    const wins = mode === 'singles' ? user.singlesWins : user.doublesWins;
+    const losses = mode === 'singles' ? user.singlesLosses : user.doublesLosses;
+    return wins + losses > 0;
   });
 
-  let entries = Array.from(states.values());
-  if (scope === 'active') {
-    entries = entries.filter((entry) => entry.active);
-  }
+  return filtered.map((user) => {
+    const wins = mode === 'singles' ? user.singlesWins : user.doublesWins;
+    const losses = mode === 'singles' ? user.singlesLosses : user.doublesLosses;
+    const rating = mode === 'singles' ? user.singlesRating : user.doublesRating;
+    const rd = mode === 'singles' ? user.singlesRd : user.doublesRd;
+    const last = mode === 'singles' ? user.singlesLastMatchAt : user.doublesLastMatchAt;
 
-  entries.sort((a, b) => {
-    if (b.rating !== a.rating) {
-      return b.rating - a.rating;
-    }
-    if (a.rd !== b.rd) {
-      return a.rd - b.rd;
-    }
-    return a.displayName.localeCompare(b.displayName, 'ko');
+    return {
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      glickoRating: rating,
+      glickoRd: rd,
+      wins,
+      losses,
+      lastMatchAt: last ? last.toISOString() : null
+    };
   });
-
-  return entries.map(({ active, rating, rd, lastMatchAt, ...rest }) => ({
-    ...rest,
-    glickoRating: rating,
-    glickoRd: rd,
-    lastMatchAt
-  }));
 }
 
 export async function getRecentMatches(limit = 50) {
@@ -340,8 +291,30 @@ export async function getPlayerProfile(identifier: string) {
     }
   }
 
+  const summary = {
+    id: player.id,
+    displayName: player.displayName,
+    username: player.username,
+    glickoRating: player.glickoRating,
+    glickoRd: player.glickoRd,
+    wins: player.wins,
+    losses: player.losses,
+    lastMatchAt: player.lastMatchAt ? player.lastMatchAt.toISOString() : null,
+    singlesRating: player.singlesRating,
+    singlesRd: player.singlesRd,
+    singlesWins: player.singlesWins,
+    singlesLosses: player.singlesLosses,
+    singlesLastMatchAt: player.singlesLastMatchAt ? player.singlesLastMatchAt.toISOString() : null,
+    doublesRating: player.doublesRating,
+    doublesRd: player.doublesRd,
+    doublesWins: player.doublesWins,
+    doublesLosses: player.doublesLosses,
+    doublesLastMatchAt: player.doublesLastMatchAt ? player.doublesLastMatchAt.toISOString() : null
+  };
+
   return {
     player,
+    summary,
     ratingTimeline,
     matches: serializedMatches,
     headToHead: Array.from(headToHead.values()).sort((a, b) =>

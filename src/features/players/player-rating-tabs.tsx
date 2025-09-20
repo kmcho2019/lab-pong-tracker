@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { RatingSparkline } from '@/features/players/rating-sparkline';
 import { formatDate } from '@/utils/time';
 import type { RatingHistoryPoint } from '@/types/rating-history';
@@ -14,28 +14,37 @@ interface PlayerRatingTabsProps {
   playerId: string;
   timeline: RatingHistoryPoint[];
   matches: ProfileMatch[];
+  mode: RatingMode;
+  onModeChange(mode: RatingMode): void;
 }
 
-export function PlayerRatingTabs({ playerId, timeline, matches }: PlayerRatingTabsProps) {
-  const [mode, setMode] = useState<RatingMode>('overall');
+export function PlayerRatingTabs({ playerId, timeline, matches, mode, onModeChange }: PlayerRatingTabsProps) {
+  const timelineByMode = useMemo(
+    () => ({
+      overall: timeline,
+      singles: timeline.filter((point) => point.matchInfo?.matchType === 'SINGLES'),
+      doubles: timeline.filter((point) => point.matchInfo?.matchType === 'DOUBLES')
+    }),
+    [timeline]
+  );
 
-  const timelineByMode = useMemo(() => ({
-    overall: timeline,
-    singles: timeline.filter((point) => point.matchInfo?.matchType === 'SINGLES'),
-    doubles: timeline.filter((point) => point.matchInfo?.matchType === 'DOUBLES')
-  }), [timeline]);
+  const matchesByMode = useMemo(
+    () => ({
+      overall: matches,
+      singles: matches.filter((match) => match.matchType === 'SINGLES'),
+      doubles: matches.filter((match) => match.matchType === 'DOUBLES')
+    }),
+    [matches]
+  );
 
-  const matchesByMode = useMemo(() => ({
-    overall: matches,
-    singles: matches.filter((match) => match.matchType === 'SINGLES'),
-    doubles: matches.filter((match) => match.matchType === 'DOUBLES')
-  }), [matches]);
-
-  const records = useMemo(() => ({
-    overall: computeRecord(matchesByMode.overall, playerId),
-    singles: computeRecord(matchesByMode.singles, playerId),
-    doubles: computeRecord(matchesByMode.doubles, playerId)
-  }), [matchesByMode, playerId]);
+  const records = useMemo(
+    () => ({
+      overall: computeRecord(matchesByMode.overall, playerId),
+      singles: computeRecord(matchesByMode.singles, playerId),
+      doubles: computeRecord(matchesByMode.doubles, playerId)
+    }),
+    [matchesByMode, playerId]
+  );
 
   const activeTimeline = timelineByMode[mode];
   const activeMatches = matchesByMode[mode];
@@ -45,7 +54,7 @@ export function PlayerRatingTabs({ playerId, timeline, matches }: PlayerRatingTa
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-sm text-slate-500 dark:text-slate-300">
-          <span className="font-semibold text-slate-700 dark:text-slate-100">{modeLabel(mode)} record:</span>{' '}
+          <span className="font-semibold text-slate-700 dark:text-slate-100">{labelForMode(mode)} record:</span>{' '}
           {activeRecord.wins} - {activeRecord.losses}
         </div>
         <div className="flex gap-2 text-xs">
@@ -53,7 +62,7 @@ export function PlayerRatingTabs({ playerId, timeline, matches }: PlayerRatingTa
             <button
               key={value}
               type="button"
-              onClick={() => setMode(value)}
+              onClick={() => onModeChange(value)}
               className={clsx(
                 'rounded-full px-3 py-1 font-semibold transition',
                 mode === value
@@ -61,7 +70,7 @@ export function PlayerRatingTabs({ playerId, timeline, matches }: PlayerRatingTa
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
               )}
             >
-              {modeLabel(value)}
+              {labelForMode(value)}
             </button>
           ))}
         </div>
@@ -83,7 +92,7 @@ export function PlayerRatingTabs({ playerId, timeline, matches }: PlayerRatingTa
             {activeMatches.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-3 py-4 text-center text-slate-500">
-                  No {modeLabel(mode).toLowerCase()} matches yet.
+                  No {labelForMode(mode).toLowerCase()} matches yet.
                 </td>
               </tr>
             ) : (
@@ -154,7 +163,7 @@ export function PlayerRatingTabs({ playerId, timeline, matches }: PlayerRatingTa
   );
 }
 
-function modeLabel(mode: RatingMode) {
+function labelForMode(mode: RatingMode) {
   switch (mode) {
     case 'singles':
       return 'Singles';
@@ -186,3 +195,5 @@ function computeRecord(matches: ProfileMatch[], playerId: string) {
 
   return { wins, losses };
 }
+
+export type { RatingMode };

@@ -51,6 +51,18 @@ model User {
   lastMatchAt      DateTime?
   wins             Int                 @default(0)
   losses           Int                 @default(0)
+  singlesRating     Float               @default(1500)
+  singlesRd         Float               @default(350)
+  singlesVolatility Float               @default(0.06)
+  singlesLastMatchAt DateTime?
+  singlesWins       Int                 @default(0)
+  singlesLosses     Int                 @default(0)
+  doublesRating     Float               @default(1500)
+  doublesRd         Float               @default(350)
+  doublesVolatility Float               @default(0.06)
+  doublesLastMatchAt DateTime?
+  doublesWins       Int                 @default(0)
+  doublesLosses     Int                 @default(0)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   accounts         Account[]
