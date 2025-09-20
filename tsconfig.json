@@ -30,7 +30,7 @@
         "src/*"
       ],
       "@/types/*": [
-        "types/*"
+        "src/types/*"
       ]
     },
     "plugins": [
