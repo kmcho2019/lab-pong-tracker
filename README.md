@@ -51,6 +51,20 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 
 > `npm run build` and any route that touches the database require a reachable `DATABASE_URL`. Keep the Postgres container running (or supply an external connection string) when building or running in production mode.
 
+### VS Code Dev Container
+
+If you use VS Code with the Dev Containers extension you can open the project with a ready-to-run Node/Postgres environment.
+
+1. Install the **Dev Containers** extension (and **Docker Desktop** if you do not already have a Docker engine running).
+2. Ensure a copy of `.env` is present in the repository root (the defaults work for the dev container).
+3. Run **Dev Containers: Reopen in Container** from the VS Code command palette.
+   - The container image is defined in `.devcontainer/` and automatically runs `npm install` and `prisma generate` on first boot.
+   - A companion Postgres service (`postgresql://user:password@db:5432/lab_pong`) is started for you.
+4. Once the container is ready, start the app with `npm run dev` (the port 3000 is forwarded to your host).
+5. Use `npx prisma migrate deploy` and `npm run db:seed` inside the container whenever you need a fresh schema or seed data.
+
+When you close VS Code the container stack shuts down automatically via `devcontainer.json` (you can bring it back with the same *Reopen in Container* command).
+
 ## Signing In
 
 1. Visit `/auth/signin` or click **Sign in** in the header.

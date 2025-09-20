@@ -9,6 +9,7 @@ This document captures the state of the Lab Table Tennis League tracker as imple
 - **Database**: PostgreSQL accessed through Prisma; schema covers users, matches, rating history, audit logs, and allowlist entries.
 - **Ratings**: Custom Glicko-2 module (singles + doubles) with replayable recompute pipeline.
 - **Deployment assets**: Production Dockerfile, docker-compose for local Postgres, Prisma migration/seed scripts, and environment template.
+- **Dev container**: VS Code configuration in `.devcontainer/` boots a Node 18 workspace with a Postgres sidecar for an instant remote development environment.
 
 ## Feature Delivery Status
 

@@ -1,0 +1,35 @@
+{
+  "name": "Lab Pong Tracker",
+  "dockerComposeFile": [
+    "docker-compose.yml"
+  ],
+  "service": "app",
+  "workspaceFolder": "/workspaces/lab-pong-tracker",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "node",
+  "forwardPorts": [3000, 5432],
+  "portsAttributes": {
+    "3000": {
+      "label": "Next.js dev server"
+    },
+    "5432": {
+      "label": "Postgres"
+    }
+  },
+  "postCreateCommand": "npm install && npm run prisma:generate",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "files.autoSave": "onFocusChange",
+        "prisma.useLocalPrismaFmt": true
+      },
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "Prisma.prisma",
+        "eamodio.gitlens"
+      ]
+    }
+  }
+}
