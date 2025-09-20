@@ -3,6 +3,7 @@ import { auth } from '@/server/auth';
 import { prisma } from '@/lib/prisma';
 import { AllowlistManager } from '@/features/admin/allowlist-manager';
 import { MatchManager } from '@/features/admin/match-manager';
+import { TournamentManager } from '@/features/admin/tournament-manager';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,67 @@ export default async function AdminPage() {
     }))
   }));
 
+  const players = await prisma.user.findMany({
+    where: { active: true },
+    orderBy: { displayName: 'asc' },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      singlesRating: true,
+      doublesRating: true
+    }
+  });
+
+  const tournaments = await prisma.tournament.findMany({
+    orderBy: { startAt: 'desc' },
+    include: {
+      participants: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              singlesRating: true,
+              doublesRating: true
+            }
+          }
+        }
+      },
+      groups: {
+        include: {
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true
+                }
+              }
+            }
+          },
+          matchups: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              resultMatch: {
+                select: {
+                  id: true,
+                  team1Score: true,
+                  team2Score: true,
+                  playedAt: true,
+                  location: true,
+                  note: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
   return (
     <div className="space-y-8">
       <div className="rounded-2xl bg-white p-6 shadow-lg ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
@@ -56,6 +118,60 @@ export default async function AdminPage() {
         </div>
       </div>
       <MatchManager matches={serializedMatches} />
+      <TournamentManager
+        players={players.map((player) => ({
+          ...player,
+          singlesRating: player.singlesRating ?? 1500,
+          doublesRating: player.doublesRating ?? 1500
+        }))}
+        tournaments={tournaments.map((tournament) => ({
+          id: tournament.id,
+          name: tournament.name,
+          mode: tournament.mode,
+          status: tournament.status,
+          gamesPerGroup: tournament.gamesPerGroup,
+          startAt: tournament.startAt.toISOString(),
+          endAt: tournament.endAt.toISOString(),
+          participants: tournament.participants.map((participant) => ({
+            id: participant.id,
+            userId: participant.userId,
+            user: {
+              id: participant.user.id,
+              username: participant.user.username,
+              displayName: participant.user.displayName,
+              singlesRating: participant.user.singlesRating ?? 1500,
+              doublesRating: participant.user.doublesRating ?? 1500
+            }
+          })),
+          groups: tournament.groups.map((group) => ({
+            id: group.id,
+            name: group.name,
+            tableLabel: group.tableLabel,
+            participants: group.participants.map((participant) => ({
+              userId: participant.userId,
+              user: participant.user
+            })),
+            matchups: group.matchups.map((matchup) => ({
+              id: matchup.id,
+              groupId: group.id,
+              team1Ids: matchup.team1Ids,
+              team2Ids: matchup.team2Ids,
+              status: matchup.status,
+              scheduledAt: matchup.scheduledAt ? matchup.scheduledAt.toISOString() : null,
+              resultMatch: matchup.resultMatch
+                ? {
+                    id: matchup.resultMatch.id,
+                    team1Score: matchup.resultMatch.team1Score,
+                    team2Score: matchup.resultMatch.team2Score,
+                    playedAt: matchup.resultMatch.playedAt ? matchup.resultMatch.playedAt.toISOString() : null,
+                    location: matchup.resultMatch.location,
+                    note: matchup.resultMatch.note
+                  }
+                : null
+            }))
+          }))
+        }))}
+      />
     </div>
   );
 }

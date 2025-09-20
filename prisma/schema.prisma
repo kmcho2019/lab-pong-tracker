@@ -119,6 +119,8 @@ model Match {
   confirmedAt   DateTime?
   cancelledAt   DateTime?
   disputeReason String?
+  tournamentMatchId String?
+  tournamentMatch   TournamentMatch? @relation("MatchTournamentLink", fields: [tournamentMatchId], references: [id])
   teams         MatchTeam[]
   participants  MatchParticipant[]
   ratingUpdates RatingHistory[]
@@ -199,6 +201,90 @@ model RecomputeJob {
   completedAt DateTime?
   status    String   @default("PENDING")
   note      String?
+}
+
+enum TournamentMode {
+  SINGLES
+  DOUBLES
+}
+
+enum TournamentStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TournamentMatchStatus {
+  SCHEDULED
+  PLAYED
+  CANCELLED
+}
+
+model Tournament {
+  id            String            @id @default(cuid())
+  name          String
+  mode          TournamentMode
+  status        TournamentStatus @default(SCHEDULED)
+  gamesPerGroup Int              @default(8)
+  startAt       DateTime
+  endAt         DateTime
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  createdById   String
+  createdBy     User             @relation(fields: [createdById], references: [id])
+  groups        TournamentGroup[]
+  participants  TournamentParticipant[]
+  matches       TournamentMatch[]
+
+  @@index([status])
+  @@index([startAt])
+}
+
+model TournamentParticipant {
+  id           String      @id @default(cuid())
+  tournamentId String
+  userId       String
+  seed         Int?
+  groupId      String?
+  createdAt    DateTime    @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
+  group      TournamentGroup? @relation(fields: [groupId], references: [id])
+
+  @@unique([tournamentId, userId])
+  @@index([groupId])
+}
+
+model TournamentGroup {
+  id           String           @id @default(cuid())
+  tournamentId String
+  name         String
+  tableLabel   String
+  createdAt    DateTime         @default(now())
+
+  tournament   Tournament       @relation(fields: [tournamentId], references: [id])
+  participants TournamentParticipant[]
+  matchups     TournamentMatch[]
+
+  @@unique([tournamentId, name])
+}
+
+model TournamentMatch {
+  id             String                 @id @default(cuid())
+  tournamentId   String
+  groupId        String
+  scheduledAt    DateTime?
+  status         TournamentMatchStatus  @default(SCHEDULED)
+  team1Ids       String[]
+  team2Ids       String[]
+  createdAt      DateTime               @default(now())
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  group      TournamentGroup @relation(fields: [groupId], references: [id])
+  resultMatch Match?        @relation("MatchTournamentLink")
+
+  @@index([status])
 }
 
 model Account {

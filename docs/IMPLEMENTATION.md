@@ -53,9 +53,17 @@ Refer back to `README.md` for setup/deployment instructions and to `AGENTS.md` f
 
 ## Admin Match Management
 
-- `/admin` now exposes a Match Management panel for editing or cancelling confirmed matches.
+- `/admin` exposes a Match Management panel for editing or cancelling confirmed matches.
 - Edits call the REST endpoint (`PATCH /api/admin/matches/:id`) which rebuilds participants, logs the change, and triggers a full recompute.
 - Cancellations hit (`DELETE /api/admin/matches/:id`), mark the match as `CANCELLED`, and rerun the ladder so historical ratings stay accurate.
+
+## Tournament Management
+
+- The admin console includes a tournament manager that seeds groups serpentine by rating and builds single-game round-robin schedules (randomised doubles pairings respect per-player limits).
+- Admins can rename groups, tweak table assignments, reassign players, and edit match pairings/schedules before saving; validation ensures players stay within one group and teams match the tournament mode.
+- Status controls—Scheduled, Active, Completed, Cancelled—drive reporting permissions. Completed events archive automatically when every matchup has a recorded result.
+- Reporting a tournament matchup runs through `POST /api/tournaments/:id/matches/:matchId/report`, creates a confirmed `Match` with participants, writes an audit entry, advances ratings, and closes the pairing. Admins and participants on the matchup can submit results while the tournament is Active.
+- Public routes (`/tournaments` and `/tournaments/[id]`) surface group rosters, matchups, and live results; authorised users can report scores inline with optimistic feedback.
 
 ## Automatic migrations
 

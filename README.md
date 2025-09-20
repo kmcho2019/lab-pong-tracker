@@ -20,6 +20,7 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 - **Leaderboards & history** showing rating, RD, streak, head-to-head records, and enriched match deltas. Filter between Overall, Singles, and Doubles without leaving the page.
 - **Player spotlight** pages with rating sparklines, recent matches, and per-opponent summaries.
 - **Admin console** to manage the allowlist, edit/cancel matches, and kick off deterministic league recomputes.
+- **Tournament management** to draft round-robin groups, randomise doubles pairings, and let participants self-report scores that immediately flow into ratings.
 
 ## Local Development
 
@@ -81,6 +82,15 @@ For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOST
 - `npm run lint` – ESLint (Next.js config).
 - `npm run test` – Vitest suite covering Glicko-2 helpers and payload validation.
 - `npm run build` – Compiles and type-checks the application (requires the database to be reachable).
+
+## Tournaments
+
+- Admins create tournaments from `/admin` by choosing singles or doubles mode, the number of groups, games per group, start/end times, and eligible participants.
+- Groups are filled serpentine by rating and round-robin (singles) or balanced random (doubles) matchups are generated automatically; admins can tweak assignments and pairings before saving.
+- Status controls (Scheduled → Active → Completed/Cancelled) live in the same manager and drive the reporting window.
+- `/tournaments` lists active, upcoming, and archived events, while `/tournaments/[id]` shows group rosters and live matchups.
+- Participants on an active matchup—or any admin—can report the score inline; results immediately create confirmed matches, update ratings, and archive the pairing.
+
 
 ## Admin & Database Operations
 
