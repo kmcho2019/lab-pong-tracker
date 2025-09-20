@@ -1,5 +1,6 @@
 import { MatchStatus, MatchType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import type { RatingHistoryMatchInfo, RatingHistoryPoint } from '@/types/rating-history';
 
 export async function getLeaderboard(scope: 'active' | 'all' = 'active') {
   const where = scope === 'active' ? { active: true } : {};
@@ -97,15 +98,16 @@ export async function getPlayerProfile(identifier: string) {
     }
   });
 
-  const ratingHistory = player.ratingHistory.map((entry) => {
+  const ratingTimeline: RatingHistoryPoint[] = player.ratingHistory.map((entry) => {
     const match = entry.match;
+
     if (!match) {
       return {
         playedAt: entry.playedAt,
         rating: entry.rating,
         matchId: entry.matchId,
         matchInfo: null
-      };
+      } satisfies RatingHistoryPoint;
     }
 
     const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
@@ -115,21 +117,23 @@ export async function getPlayerProfile(identifier: string) {
     const opponentTeam = playerOnTeam1 ? team2 : team1;
     const didWin = (playerOnTeam1 ? match.team1Score : match.team2Score) > (playerOnTeam1 ? match.team2Score : match.team1Score);
 
+    const matchInfo: RatingHistoryMatchInfo = {
+      id: match.id,
+      score: `${match.team1Score} – ${match.team2Score}`,
+      result: didWin ? 'Win' : 'Loss',
+      matchType: match.matchType,
+      opponents: opponentTeam.map((participant) => participant.user.displayName),
+      teammates: playerTeam
+        .filter((participant) => participant.userId !== player.id)
+        .map((participant) => participant.user.displayName)
+    };
+
     return {
       playedAt: entry.playedAt,
       rating: entry.rating,
       matchId: entry.matchId,
-      matchInfo: {
-        id: match.id,
-        score: `${match.team1Score} – ${match.team2Score}` as string,
-        result: didWin ? 'Win' : 'Loss',
-        matchType: match.matchType,
-        opponents: opponentTeam.map((participant) => participant.user.displayName),
-        teammates: playerTeam
-          .filter((participant) => participant.userId !== player.id)
-          .map((participant) => participant.user.displayName)
-      }
-    };
+      matchInfo
+    } satisfies RatingHistoryPoint;
   });
 
   const headToHead = new Map<
@@ -183,10 +187,8 @@ export async function getPlayerProfile(identifier: string) {
   }
 
   return {
-    player: {
-      ...player,
-      ratingHistory
-    },
+    player,
+    ratingTimeline,
     matches,
     headToHead: Array.from(headToHead.values()).sort((a, b) => a.opponent.displayName.localeCompare(b.opponent.displayName, 'ko'))
   };

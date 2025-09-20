@@ -2,23 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { leagueDayjs, LEAGUE_TIMEZONE } from '@/utils/time';
-
-interface RatingSparklineHistoryPoint {
-  playedAt: Date | string | null;
-  rating: number;
-  matchId?: string | null;
-  matchInfo: {
-    id: string;
-    score: string;
-    result: 'Win' | 'Loss';
-    matchType: 'SINGLES' | 'DOUBLES';
-    opponents: string[];
-    teammates: string[];
-  } | null;
-}
+import type { RatingHistoryPoint } from '@/types/rating-history';
 
 interface RatingSparklineProps {
-  history: RatingSparklineHistoryPoint[];
+  history: RatingHistoryPoint[];
 }
 
 type ChartPoint = {
@@ -26,7 +13,7 @@ type ChartPoint = {
   y: number;
   rating: number;
   playedAt: string;
-  matchInfo: RatingSparklineHistoryPoint['matchInfo'];
+  matchInfo: RatingHistoryPoint['matchInfo'];
 };
 
 type ChartTicks = {
@@ -175,7 +162,7 @@ export function RatingSparkline({ history }: RatingSparklineProps) {
   );
 }
 
-function buildChart(history: RatingSparklineHistoryPoint[]): {
+function buildChart(history: RatingHistoryPoint[]): {
   points: ChartPoint[];
   ticks: ChartTicks;
 } {

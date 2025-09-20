@@ -16,7 +16,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
     notFound();
   }
 
-  const { player, matches, headToHead } = profile;
+  const { player, matches, headToHead, ratingTimeline } = profile;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
@@ -58,7 +58,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         </dl>
 
         <div className="mt-6">
-          <RatingSparkline history={player.ratingHistory} />
+          <RatingSparkline history={ratingTimeline} />
         </div>
 
         <div className="mt-6">
