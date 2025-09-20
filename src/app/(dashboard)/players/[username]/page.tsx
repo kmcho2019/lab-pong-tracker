@@ -19,7 +19,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-      <PlayerProfileContent player={summary} timeline={ratingTimeline} matches={matches} />
+      <PlayerProfileContent summary={summary} timeline={ratingTimeline} matches={matches} />
       <aside className="flex flex-col gap-6">
         <section className="rounded-2xl bg-white p-6 shadow-lg ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700">
           <h3 className="text-lg font-semibold">Head-to-head</h3>
