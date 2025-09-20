@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getPlayerProfile } from '@/server/league-service';
-import { RatingSparkline } from '@/features/players/rating-sparkline';
+import { PlayerRatingTabs } from '@/features/players/player-rating-tabs';
 import { formatDate } from '@/utils/time';
 
 interface PlayerPageProps {
@@ -58,70 +58,7 @@ export default async function PlayerPage({ params }: PlayerPageProps) {
         </dl>
 
         <div className="mt-6">
-          <RatingSparkline history={ratingTimeline} />
-        </div>
-
-        <div className="mt-6">
-          <h3 className="text-lg font-semibold">Recent Matches</h3>
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[600px] table-auto text-sm">
-              <thead className="text-left text-slate-500">
-                <tr>
-                  <th className="pb-2">Date</th>
-                  <th className="pb-2">Opponent(s)</th>
-                  <th className="pb-2">Score</th>
-                  <th className="pb-2">Rating</th>
-                </tr>
-              </thead>
-              <tbody>
-                {matches.map((match) => {
-                  const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
-                  const team2 = match.participants.filter((participant) => participant.team?.teamNo === 2);
-                  const playerOnTeam1 = team1.some((participant) => participant.userId === player.id);
-                  const playerParticipant = match.participants.find((participant) => participant.userId === player.id);
-                  const opponentTeam = playerOnTeam1 ? team2 : team1;
-                  const hasRatings = typeof playerParticipant?.ratingBefore === 'number' && typeof playerParticipant?.ratingAfter === 'number';
-                  const beforeValue = hasRatings ? Number(playerParticipant?.ratingBefore) : null;
-                  const afterValue = hasRatings ? Number(playerParticipant?.ratingAfter) : null;
-                  const delta = hasRatings && beforeValue !== null && afterValue !== null ? Math.round(afterValue - beforeValue) : null;
-
-                  return (
-                    <tr key={match.id} className="border-t border-slate-100 dark:border-slate-700">
-                      <td className="py-2 text-slate-500">{formatDate(match.playedAt)}</td>
-                      <td className="py-2">
-                        {opponentTeam.map((opponent) => (
-                          <Link
-                            key={opponent.userId}
-                            href={`/players/${opponent.user.username}`}
-                            className="block text-blue-500 hover:underline"
-                          >
-                            {opponent.user.displayName}
-                          </Link>
-                        ))}
-                      </td>
-                      <td className="py-2">
-                        {match.team1Score} – {match.team2Score}
-                      </td>
-                      <td className="py-2">
-                        {hasRatings && beforeValue !== null && afterValue !== null ? (
-                          <div className="text-right">
-                            <span className="text-slate-500 dark:text-slate-300">
-                              {Math.round(beforeValue)} → {Math.round(afterValue)}
-                            </span>
-                            <span className={`ml-2 font-semibold ${delta === null ? 'text-slate-400' : delta >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              {delta !== null && delta > 0 ? `+${delta}` : delta}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <PlayerRatingTabs playerId={player.id} timeline={ratingTimeline} matches={matches} />
         </div>
       </section>
       <aside className="flex flex-col gap-6">

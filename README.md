@@ -17,7 +17,7 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 - **Single or double match submission** with win-by validation, rich form, optimistic UI, and instant rating updates.
 - **Dispute workflow** (`CONFIRMED → DISPUTED/CANCELLED`) available to admins if an entry needs correction.
 - **Match history & profiles** show rating before/after with deltas plus interactive KST-aware charts.
-- **Leaderboards & history** showing rating, RD, streak, head-to-head records, and enriched match deltas.
+- **Leaderboards & history** showing rating, RD, streak, head-to-head records, and enriched match deltas. Filter between Overall, Singles, and Doubles without leaving the page.
 - **Player spotlight** pages with rating sparklines, recent matches, and per-opponent summaries.
 - **Admin console** to manage the allowlist, edit/cancel matches, and kick off deterministic league recomputes.
 
@@ -226,6 +226,7 @@ All lab members.
 
   * Panel cards: current rating & RD (with 95% interval), rank within active players, last 5 matches with deltas, “Submit Match” CTA, top‑5 leaderboard, quick links (My Profile, Rankings, History).
   * Surface the latest submissions with rating deltas for quick review.
+  * Leaderboard tabs: Overall, Singles, Doubles.
 
 * **`/submit`**
 
@@ -252,9 +253,9 @@ All lab members.
 * **`/players/{username}`**
 
   * Header: avatar, display name, username, badges (Provisional, Streak).
-  * Rating line chart (singles/doubles toggles).
+  * Rating line chart with Overall/Singles/Doubles tabs plus hover tooltips detailing opponent and score.
   * Stat tiles: W‑L, win rate, longest streak, recent form (last 10), best win, performance by day of week (optional).
-  * Match list with filters & deltas.
+  * Match list synced with the selected tab and deltas.
   * H2H quick selector.
 
 * **`/compare?h2h=a,b`** (new)

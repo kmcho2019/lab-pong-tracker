@@ -265,7 +265,7 @@ model AuditLog {
 ## 8) Leaderboard & Profile (single‑game semantics)
 
 - **Leaderboard** shows ratings based on cumulative single‑game history. Filters for Singles/Doubles/Overall remain.  
-- **Profile**: rating line chart, win/loss totals count games (not series). Add optional “Games/Day” and “Form (last 10 games)” tiles.
+- **Profile**: rating line chart with toggles (Overall/Singles/Doubles), win/loss totals count games (not series). Add optional “Games/Day” and “Form (last 10 games)” tiles.
 
 ---
 

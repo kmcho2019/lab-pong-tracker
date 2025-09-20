@@ -1,28 +1,155 @@
 import { MatchStatus, MatchType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import type { RatingHistoryMatchInfo, RatingHistoryPoint } from '@/types/rating-history';
+import type { ProfileMatch } from '@/types/player-profile';
 
-export async function getLeaderboard(scope: 'active' | 'all' = 'active') {
-  const where = scope === 'active' ? { active: true } : {};
-  const users = await prisma.user.findMany({
-    where,
-    orderBy: [
-      { glickoRating: 'desc' },
-      { displayName: 'asc' }
-    ],
-    select: {
-      id: true,
-      displayName: true,
-      username: true,
-      image: true,
-      glickoRating: true,
-      glickoRd: true,
-      wins: true,
-      losses: true,
-      lastMatchAt: true
+export type LeaderboardMode = 'overall' | 'singles' | 'doubles';
+
+export interface LeaderboardRow {
+  id: string;
+  username: string;
+  displayName: string;
+  glickoRating: number;
+  glickoRd: number;
+  wins: number;
+  losses: number;
+  lastMatchAt: string | null;
+}
+
+export async function getLeaderboard(
+  scope: 'active' | 'all' = 'active',
+  mode: LeaderboardMode = 'overall'
+): Promise<LeaderboardRow[]> {
+  if (mode === 'overall') {
+    const where = scope === 'active' ? { active: true } : {};
+    const users = await prisma.user.findMany({
+      where,
+      orderBy: [
+        { glickoRating: 'desc' },
+        { displayName: 'asc' }
+      ],
+      select: {
+        id: true,
+        displayName: true,
+        username: true,
+        glickoRating: true,
+        glickoRd: true,
+        wins: true,
+        losses: true,
+        lastMatchAt: true
+      }
+    });
+
+    return users.map((user) => ({
+      id: user.id,
+      username: user.username,
+      displayName: user.displayName,
+      glickoRating: user.glickoRating,
+      glickoRd: user.glickoRd,
+      wins: user.wins,
+      losses: user.losses,
+      lastMatchAt: user.lastMatchAt ? user.lastMatchAt.toISOString() : null
+    }));
+  }
+
+  const matchType = mode === 'singles' ? MatchType.SINGLES : MatchType.DOUBLES;
+  const matches = await prisma.match.findMany({
+    where: {
+      status: MatchStatus.CONFIRMED,
+      matchType
+    },
+    orderBy: { playedAt: 'asc' },
+    include: {
+      participants: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              active: true
+            }
+          },
+          team: true
+        }
+      }
     }
   });
-  return users;
+
+  type InternalState = {
+    id: string;
+    username: string;
+    displayName: string;
+    active: boolean;
+    rating: number;
+    rd: number;
+    wins: number;
+    losses: number;
+    lastMatchAt: string | null;
+  };
+
+  const states = new Map<string, InternalState>();
+
+  matches.forEach((match) => {
+    const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
+    const team2 = match.participants.filter((participant) => participant.team?.teamNo === 2);
+    const team1Won = match.team1Score > match.team2Score;
+
+    const allParticipants = [...team1, ...team2];
+
+    allParticipants.forEach((participant) => {
+      const user = participant.user;
+      const isTeam1 = participant.team?.teamNo === 1;
+      const didWin = isTeam1 ? team1Won : !team1Won;
+      const ratingAfter = participant.ratingAfter ?? participant.ratingBefore ?? 1500;
+      const rdAfter = participant.rdAfter ?? participant.rdBefore ?? 350;
+
+      const existing = states.get(user.id) ?? {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        active: user.active,
+        rating: 1500,
+        rd: 350,
+        wins: 0,
+        losses: 0,
+        lastMatchAt: null
+      };
+
+      existing.rating = ratingAfter;
+      existing.rd = rdAfter;
+      existing.lastMatchAt = match.playedAt.toISOString();
+      if (didWin) {
+        existing.wins += 1;
+      } else {
+        existing.losses += 1;
+      }
+
+      states.set(user.id, existing);
+    });
+  });
+
+  let entries = Array.from(states.values());
+  if (scope === 'active') {
+    entries = entries.filter((entry) => entry.active);
+  }
+
+  entries.sort((a, b) => {
+    if (b.rating !== a.rating) {
+      return b.rating - a.rating;
+    }
+    if (a.rd !== b.rd) {
+      return a.rd - b.rd;
+    }
+    return a.displayName.localeCompare(b.displayName, 'ko');
+  });
+
+  return entries.map(({ active, rating, rd, lastMatchAt, ...rest }) => ({
+    ...rest,
+    glickoRating: rating,
+    glickoRd: rd,
+    lastMatchAt
+  }));
 }
 
 export async function getRecentMatches(limit = 50) {
@@ -93,7 +220,16 @@ export async function getPlayerProfile(identifier: string) {
     take: 100,
     include: {
       participants: {
-        include: { user: true, team: true }
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true
+            }
+          },
+          team: true
+        }
       }
     }
   });
@@ -103,7 +239,7 @@ export async function getPlayerProfile(identifier: string) {
 
     if (!match) {
       return {
-        playedAt: entry.playedAt,
+        playedAt: entry.playedAt ? entry.playedAt.toISOString() : null,
         rating: entry.rating,
         matchId: entry.matchId,
         matchInfo: null
@@ -129,12 +265,31 @@ export async function getPlayerProfile(identifier: string) {
     };
 
     return {
-      playedAt: entry.playedAt,
+      playedAt: entry.playedAt ? entry.playedAt.toISOString() : null,
       rating: entry.rating,
       matchId: entry.matchId,
       matchInfo
     } satisfies RatingHistoryPoint;
   });
+
+  const serializedMatches: ProfileMatch[] = matches.map((match) => ({
+    id: match.id,
+    matchType: match.matchType,
+    team1Score: match.team1Score,
+    team2Score: match.team2Score,
+    playedAt: match.playedAt.toISOString(),
+    participants: match.participants.map((participant) => ({
+      id: participant.id,
+      userId: participant.userId,
+      username: participant.user.username,
+      displayName: participant.user.displayName,
+      teamNo: participant.team?.teamNo ?? null,
+      ratingBefore: participant.ratingBefore,
+      ratingAfter: participant.ratingAfter,
+      rdBefore: participant.rdBefore,
+      rdAfter: participant.rdAfter
+    }))
+  }));
 
   const headToHead = new Map<
     string,
@@ -156,7 +311,6 @@ export async function getPlayerProfile(identifier: string) {
     const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
     const team2 = match.participants.filter((participant) => participant.team?.teamNo === 2);
     const playerOnTeam1 = team1.some((participant) => participant.userId === player.id);
-    const playerTeam = playerOnTeam1 ? team1 : team2;
     const opponentTeam = playerOnTeam1 ? team2 : team1;
     const didWin = (playerOnTeam1 ? match.team1Score : match.team2Score) > (playerOnTeam1 ? match.team2Score : match.team1Score);
     const isSingles = match.matchType === MatchType.SINGLES;
@@ -189,7 +343,9 @@ export async function getPlayerProfile(identifier: string) {
   return {
     player,
     ratingTimeline,
-    matches,
-    headToHead: Array.from(headToHead.values()).sort((a, b) => a.opponent.displayName.localeCompare(b.opponent.displayName, 'ko'))
+    matches: serializedMatches,
+    headToHead: Array.from(headToHead.values()).sort((a, b) =>
+      a.opponent.displayName.localeCompare(b.opponent.displayName, 'ko')
+    )
   };
 }

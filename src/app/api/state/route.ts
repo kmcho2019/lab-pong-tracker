@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   const [players, matches, seasons] = await Promise.all([
-    getLeaderboard('all'),
+    getLeaderboard('all', 'overall'),
     getRecentMatches(100),
     prisma.season.findMany({ orderBy: { startDate: 'desc' } })
   ]);
