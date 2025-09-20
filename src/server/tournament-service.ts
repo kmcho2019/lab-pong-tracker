@@ -9,6 +9,66 @@ import {
 import { prisma } from '@/lib/prisma';
 import { applyRatingsForMatch } from '@/server/rating-engine';
 
+export interface TournamentDetailParticipantDTO {
+  id: string;
+  tournamentId: string;
+  userId: string;
+  seed: number | null;
+  groupId: string | null;
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    singlesRating: number;
+    doublesRating: number;
+  };
+}
+
+export interface TournamentDetailMatchDTO {
+  id: string;
+  team1Ids: string[];
+  team2Ids: string[];
+  status: TournamentMatchStatus;
+  scheduledAt: string | null;
+  resultMatch: {
+    id: string;
+    team1Score: number;
+    team2Score: number;
+    targetPoints: number;
+    winByMargin: number;
+    playedAt: string | null;
+    location: string | null;
+    note: string | null;
+  } | null;
+}
+
+export interface TournamentDetailGroupDTO {
+  id: string;
+  name: string;
+  tableLabel: string;
+  participants: Array<{
+    userId: string;
+    user: {
+      id: string;
+      username: string;
+      displayName: string;
+    };
+  }>;
+  matchups: TournamentDetailMatchDTO[];
+}
+
+export interface TournamentDetailDTO {
+  id: string;
+  name: string;
+  mode: TournamentMode;
+  status: TournamentStatus;
+  gamesPerGroup: number;
+  startAt: string;
+  endAt: string;
+  participants: TournamentDetailParticipantDTO[];
+  groups: TournamentDetailGroupDTO[];
+}
+
 const DEFAULT_TARGET_POINTS = 11;
 const DEFAULT_WIN_BY_MARGIN = 2;
 
@@ -309,8 +369,8 @@ export async function listTournaments() {
   });
 }
 
-export async function getTournamentDetail(id: string) {
-  return prisma.tournament.findUnique({
+export async function getTournamentDetail(id: string): Promise<TournamentDetailDTO | null> {
+  const tournament = await prisma.tournament.findUnique({
     where: { id },
     include: {
       participants: {
@@ -360,6 +420,66 @@ export async function getTournamentDetail(id: string) {
       }
     }
   });
+
+  if (!tournament) {
+    return null;
+  }
+
+  return {
+    id: tournament.id,
+    name: tournament.name,
+    mode: tournament.mode,
+    status: tournament.status,
+    gamesPerGroup: tournament.gamesPerGroup,
+    startAt: tournament.startAt.toISOString(),
+    endAt: tournament.endAt.toISOString(),
+    participants: tournament.participants.map((participant) => ({
+      id: participant.id,
+      tournamentId: participant.tournamentId,
+      userId: participant.userId,
+      seed: participant.seed ?? null,
+      groupId: participant.groupId ?? null,
+      user: {
+        id: participant.user.id,
+        username: participant.user.username,
+        displayName: participant.user.displayName,
+        singlesRating: participant.user.singlesRating ?? 1500,
+        doublesRating: participant.user.doublesRating ?? 1500
+      }
+    })),
+    groups: tournament.groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      tableLabel: group.tableLabel,
+      participants: group.participants.map((participant) => ({
+        userId: participant.userId,
+        user: {
+          id: participant.user.id,
+          username: participant.user.username,
+          displayName: participant.user.displayName
+        }
+      })),
+      matchups: group.matchups.map((matchup) => ({
+        id: matchup.id,
+        team1Ids: matchup.team1Ids,
+        team2Ids: matchup.team2Ids,
+        status: matchup.status,
+        scheduledAt: matchup.scheduledAt ? matchup.scheduledAt.toISOString() : null,
+        resultMatch: matchup.resultMatch
+          ? {
+              id: matchup.resultMatch.id,
+              team1Score: matchup.resultMatch.team1Score,
+              team2Score: matchup.resultMatch.team2Score,
+              targetPoints: matchup.resultMatch.targetPoints,
+              winByMargin: matchup.resultMatch.winByMargin,
+              playedAt: matchup.resultMatch.playedAt ? matchup.resultMatch.playedAt.toISOString() : null,
+              location: matchup.resultMatch.location,
+              note: matchup.resultMatch.note
+            }
+          : null
+      }))
+    }))
+  };
 }
 
 interface ReportMatchPayload {
@@ -477,9 +597,7 @@ export async function reportTournamentMatch({
         enteredById: enteredBy,
         confirmedById: enteredBy,
         confirmedAt: now,
-        tournamentMatch: {
-          connect: { id: tournamentMatchId }
-        },
+        tournamentMatchId,
         teams: {
           create: [{ teamNo: 1 }, { teamNo: 2 }]
         }

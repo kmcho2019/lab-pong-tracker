@@ -16,6 +16,7 @@ export default async function TournamentDetailPage({ params }: PageProps) {
   }
 
   const session = await auth();
+  const role = session?.user?.role === 'ADMIN' ? 'ADMIN' : 'USER';
 
-  return <TournamentDetailClient tournament={tournament} userId={session?.user?.id ?? null} role={session?.user?.role ?? 'USER'} />;
+  return <TournamentDetailClient tournament={tournament} userId={session?.user?.id ?? null} role={role} />;
 }
