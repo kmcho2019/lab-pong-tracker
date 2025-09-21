@@ -4,12 +4,14 @@ import { TournamentMode } from '@prisma/client';
 import { auth } from '@/server/auth';
 import { createTournament, listTournaments } from '@/server/tournament-service';
 
+const userIdSchema = z.string().min(1);
+
 const createSchema = z.object({
   name: z.string().min(1),
   mode: z.nativeEnum(TournamentMode),
   gamesPerGroup: z.number().int().min(1).max(50).optional(),
   groupLabels: z.array(z.string().min(1)).min(1),
-  participantIds: z.array(z.string().cuid()).min(2),
+  participantIds: z.array(userIdSchema).min(2),
   startAt: z.string().datetime(),
   endAt: z.string().datetime()
 });

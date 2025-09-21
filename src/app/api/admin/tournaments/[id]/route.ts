@@ -4,6 +4,8 @@ import { TournamentMatchStatus, TournamentStatus } from '@prisma/client';
 import { auth } from '@/server/auth';
 import { getTournamentDetail, updateTournamentStructure } from '@/server/tournament-service';
 
+const userIdSchema = z.string().min(1);
+
 const updateSchema = z.object({
   status: z.nativeEnum(TournamentStatus).optional(),
   groups: z
@@ -12,7 +14,7 @@ const updateSchema = z.object({
         id: z.string().cuid(),
         name: z.string().min(1),
         tableLabel: z.string().min(1),
-        participantIds: z.array(z.string().cuid())
+        participantIds: z.array(userIdSchema)
       })
     )
     .optional(),
@@ -21,8 +23,8 @@ const updateSchema = z.object({
       z.object({
         id: z.string().cuid(),
         groupId: z.string().cuid(),
-        team1Ids: z.array(z.string().cuid()).min(1),
-        team2Ids: z.array(z.string().cuid()).min(1),
+        team1Ids: z.array(userIdSchema).min(1),
+        team2Ids: z.array(userIdSchema).min(1),
         scheduledAt: z.string().datetime().nullable().optional(),
         status: z.nativeEnum(TournamentMatchStatus).optional()
       })
