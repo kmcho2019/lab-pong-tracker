@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
 import {
@@ -134,6 +134,7 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
     selectedIds: new Set()
   });
   const [editing, setEditing] = useState<{ id: string; draft: DraftTournament } | null>(null);
+  const [tournamentsCollapsed, setTournamentsCollapsed] = useState(false);
 
   const participantLookup: ParticipantLookup = useMemo(() => {
     const map = new Map<string, { displayName: string; username: string }>();
@@ -466,9 +467,22 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
       </section>
 
       <section className="space-y-4">
-        <h3 className="text-base font-semibold">Existing Tournaments</h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold">Existing Tournaments</h3>
+          {tournaments.length > 0 ? (
+            <button
+              type="button"
+              className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+              onClick={() => setTournamentsCollapsed((previous) => !previous)}
+            >
+              {tournamentsCollapsed ? 'Show tournaments' : 'Hide tournaments'}
+            </button>
+          ) : null}
+        </div>
         {tournaments.length === 0 ? (
           <p className="text-sm text-slate-500">No tournaments yet.</p>
+        ) : tournamentsCollapsed ? (
+          <p className="text-sm text-slate-500">Tournament list hidden. Click “Show tournaments” to expand.</p>
         ) : (
           tournaments.map((tournament) => (
             <TournamentCard
@@ -526,6 +540,13 @@ function TournamentCard({
     tournament.matchCountMode === TournamentMatchCountMode.PER_PLAYER
       ? `${tournament.matchesPerPlayer ?? '–'} matches / player`
       : `${tournament.gamesPerGroup ?? 0} games / group`;
+  const [collapsed, setCollapsed] = useState<boolean>(tournament.status !== TournamentStatus.ACTIVE);
+
+  useEffect(() => {
+    if (isEditing) {
+      setCollapsed(false);
+    }
+  }, [isEditing]);
 
   return (
     <div className="space-y-4 rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-700">
@@ -591,6 +612,13 @@ function TournamentCard({
             Edit structure
           </button>
         )}
+        <button
+          type="button"
+          className="rounded border border-slate-300 px-3 py-1 text-xs font-semibold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+          onClick={() => setCollapsed((previous) => !previous)}
+        >
+          {collapsed ? 'Expand details' : 'Collapse details'}
+        </button>
         {isEditing && draft ? (
           <button
             type="button"
@@ -603,15 +631,17 @@ function TournamentCard({
         ) : null}
       </div>
 
-      {isEditing && draft ? (
-        <TournamentEditor
-          draft={draft}
-          tournament={tournament}
-          participantLookup={participantLookup}
-          onChange={onDraftChange}
-        />
-      ) : (
-        <TournamentReadonly tournament={tournament} participantLookup={participantLookup} />
+      {!collapsed && (
+        isEditing && draft ? (
+          <TournamentEditor
+            draft={draft}
+            tournament={tournament}
+            participantLookup={participantLookup}
+            onChange={onDraftChange}
+          />
+        ) : (
+          <TournamentReadonly tournament={tournament} participantLookup={participantLookup} />
+        )
       )}
     </div>
   );

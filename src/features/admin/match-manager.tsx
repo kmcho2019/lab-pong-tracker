@@ -48,6 +48,8 @@ export function MatchManager({ matches }: MatchManagerProps) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<string | null>(null);
+  const [sectionCollapsed, setSectionCollapsed] = useState(false);
+  const [openMatches, setOpenMatches] = useState<Set<string>>(() => new Set());
 
   const initialState = useMemo(() => {
     const map = new Map<string, MatchFormState>();
@@ -148,13 +150,55 @@ export function MatchManager({ matches }: MatchManagerProps) {
     });
   };
 
+  const toggleAllMatches = (forceOpen: boolean) => {
+    setOpenMatches(() => {
+      if (forceOpen) {
+        return new Set(matches.map((match) => match.id));
+      }
+      return new Set();
+    });
+  };
+
   return (
     <div className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow dark:border-slate-700 dark:bg-slate-800">
-      <h2 className="text-lg font-semibold">Match Management</h2>
-      <p className="text-sm text-slate-500">Edit or cancel confirmed matches. Ratings recompute automatically.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold">Match Management</h2>
+          <p className="text-sm text-slate-500">Edit or cancel confirmed matches. Ratings recompute automatically.</p>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          {matches.length > 0 && !sectionCollapsed ? (
+            <>
+              <button
+                type="button"
+                className="rounded border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                onClick={() => toggleAllMatches(openMatches.size !== matches.length)}
+              >
+                {openMatches.size === matches.length ? 'Collapse all matches' : 'Expand all matches'}
+              </button>
+            </>
+          ) : null}
+          <button
+            type="button"
+            className="rounded border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+            onClick={() => {
+              setSectionCollapsed((previous) => {
+                const next = !previous;
+                if (next) {
+                  setOpenMatches(new Set());
+                }
+                return next;
+              });
+            }}
+          >
+            {sectionCollapsed ? 'Show matches' : 'Hide matches'}
+          </button>
+        </div>
+      </div>
       {message ? <div className="mt-4 rounded bg-emerald-100 px-3 py-2 text-emerald-700">{message}</div> : null}
       {errors ? <div className="mt-4 rounded bg-rose-100 px-3 py-2 text-rose-700">{errors}</div> : null}
-      <div className="mt-6 space-y-6">
+      {!sectionCollapsed && (
+        <div className="mt-6 space-y-6">
         {matches.length === 0 ? (
           <p className="text-sm text-slate-500">No confirmed matches found.</p>
         ) : (
@@ -165,7 +209,23 @@ export function MatchManager({ matches }: MatchManagerProps) {
             ];
             const state = formState.get(match.id) ?? initialState.get(match.id);
             return (
-              <details key={match.id} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open>
+              <details
+                key={match.id}
+                className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+                open={openMatches.has(match.id)}
+                onToggle={(event) => {
+                  const isOpen = (event.target as HTMLDetailsElement).open;
+                  setOpenMatches((prev) => {
+                    const next = new Set(prev);
+                    if (isOpen) {
+                      next.add(match.id);
+                    } else {
+                      next.delete(match.id);
+                    }
+                    return next;
+                  });
+                }}
+              >
                 <summary className="cursor-pointer text-sm font-semibold">
                   {formatDate(match.playedAt)} · {participantsByTeam[0].map((p) => p.displayName).join(' / ')} vs{' '}
                   {participantsByTeam[1].map((p) => p.displayName).join(' / ')} · {match.team1Score} – {match.team2Score}
@@ -310,7 +370,8 @@ export function MatchManager({ matches }: MatchManagerProps) {
             );
           })
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
