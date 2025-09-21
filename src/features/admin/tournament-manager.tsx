@@ -10,7 +10,7 @@ import {
   TournamentStatus
 } from '@prisma/client';
 import { formatDate, leagueDayjs, toLeagueIso } from '@/utils/time';
-import { formatDisplayLabel } from '@/utils/name-format';
+import { findDuplicateDisplayNames, formatDisplayLabel } from '@/utils/name-format';
 
 interface AdminPlayer {
   id: string;
@@ -75,7 +75,7 @@ interface AdminTournament {
 interface TournamentManagerProps {
   players: AdminPlayer[];
   tournaments: AdminTournament[];
-  duplicateNames: Set<string>;
+  duplicateNames: string[];
 }
 
 interface CreateFormState {
@@ -153,6 +153,19 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
     });
     return map;
   }, [players, tournaments]);
+
+  const duplicateNameSet = useMemo(() => {
+    const unique = new Map<string, { displayName: string }>();
+    players.forEach((player) => unique.set(player.id, { displayName: player.displayName }));
+    tournaments.forEach((tournament) => {
+      tournament.participants.forEach((participant) =>
+        unique.set(participant.userId, { displayName: participant.user.displayName })
+      );
+    });
+    const combined = findDuplicateDisplayNames(Array.from(unique.values()));
+    duplicateNames.forEach((name) => combined.add(name.toLowerCase()));
+    return combined;
+  }, [players, tournaments, duplicateNames]);
 
 
   const toggleSelection = (id: string) => {
@@ -492,7 +505,7 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
               key={tournament.id}
               tournament={tournament}
               participantLookup={participantLookup}
-              duplicateNames={duplicateNames}
+              duplicateNames={duplicateNameSet}
               isEditing={editing?.id === tournament.id}
               draft={editing?.id === tournament.id ? editing.draft : null}
               onEdit={() => beginEdit(tournament)}

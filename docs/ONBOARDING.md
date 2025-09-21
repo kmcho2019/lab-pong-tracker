@@ -67,5 +67,6 @@ The endpoint responds with counts of created, updated, and skipped users. Repeat
 - Visit `/players` to verify ratings and `/tournaments` to double-check filters.
 - Update the README and docs links for your club wiki so future admins know where to start.
 - Document the hand-off plan (see **Admin Transitions** in `docs/ADMIN_GUIDE.md`).
+- If players request different names or handles, use **Member Lifecycle → Edit name** to update the display and `@handle` after verifying the validations pass.
 
 See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common setup issues.

@@ -1,13 +1,16 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import type { Role } from '@prisma/client';
 import { formatDate } from '@/utils/time';
+import { findDuplicateDisplayNames, formatDisplayLabel } from '@/utils/name-format';
 
 interface AdminUserRow {
   id: string;
   displayName: string;
+  username: string;
   email: string;
   role: Role;
   active: boolean;
@@ -23,16 +26,27 @@ export function UserLifecycleManager({ users }: UserLifecycleManagerProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ displayName: string; username: string }>({ displayName: '', username: '' });
+  const router = useRouter();
+
+  const duplicateNames = useMemo(() => findDuplicateDisplayNames(users.map(({ displayName }) => ({ displayName }))), [users]);
 
   const filteredUsers = useMemo(() => {
     if (!filter.trim()) return users;
     const query = filter.trim().toLowerCase();
     return users.filter((user) =>
-      user.displayName.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
+      user.displayName.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query) ||
+      user.username.toLowerCase().includes(query)
     );
   }, [filter, users]);
 
-  const handleUpdate = (id: string, payload: { role?: Role; active?: boolean }) => {
+  const handleUpdate = (
+    id: string,
+    payload: { role?: Role; active?: boolean; displayName?: string; username?: string },
+    afterSuccess?: () => void
+  ) => {
     startTransition(async () => {
       setMessage(null);
       setError(null);
@@ -47,7 +61,9 @@ export function UserLifecycleManager({ users }: UserLifecycleManagerProps) {
           setError(body.error || 'Unable to update user.');
           return;
         }
-        setMessage('Member settings updated. Refresh to see latest state.');
+        setMessage('Member settings updated.');
+        router.refresh();
+        afterSuccess?.();
       } catch (err) {
         setError('Unable to update user.');
       }
@@ -83,12 +99,42 @@ export function UserLifecycleManager({ users }: UserLifecycleManagerProps) {
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.map((user) => (
-              <tr key={user.id} className="border-t border-slate-100 dark:border-slate-700">
-                <td className="px-3 py-2 align-top">
-                  <div className="font-medium text-slate-900 dark:text-slate-100">{user.displayName}</div>
-                  <div className="text-xs text-slate-500">{user.email}</div>
-                </td>
+            {filteredUsers.map((user) => {
+              const isEditing = editingUserId === user.id;
+              return (
+                <tr key={user.id} className="border-t border-slate-100 dark:border-slate-700">
+                  <td className="px-3 py-2 align-top">
+                    <div className="font-medium text-slate-900 dark:text-slate-100">
+                      {isEditing
+                        ? (
+                            <input
+                              type="text"
+                              value={editValues.displayName}
+                              onChange={(event) =>
+                                setEditValues((previous) => ({ ...previous, displayName: event.target.value }))
+                              }
+                              className="w-full rounded border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-700"
+                            />
+                          )
+                        : formatDisplayLabel(user.displayName, user.username, duplicateNames)}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">{user.email}</div>
+                    <div className="text-xs text-slate-500">@{user.username}</div>
+                    {isEditing ? (
+                      <div className="mt-2 text-xs text-slate-500">
+                        Handle (@)
+                        <input
+                          type="text"
+                          value={editValues.username}
+                          onChange={(event) =>
+                            setEditValues((previous) => ({ ...previous, username: event.target.value }))
+                          }
+                          className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-700"
+                          placeholder="Leave blank to auto-generate"
+                        />
+                      </div>
+                    ) : null}
+                  </td>
                 <td className="px-3 py-2 align-top">
                   <span
                     className={clsx(
@@ -114,6 +160,45 @@ export function UserLifecycleManager({ users }: UserLifecycleManagerProps) {
                 </td>
                 <td className="px-3 py-2 align-top">
                   <div className="flex flex-wrap gap-2 text-xs">
+                    {isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          className="rounded border border-blue-400 px-3 py-1 font-semibold text-blue-600 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                          onClick={() =>
+                            handleUpdate(
+                              user.id,
+                              { displayName: editValues.displayName, username: editValues.username },
+                              () => setEditingUserId(null)
+                            )
+                          }
+                          disabled={isPending}
+                        >
+                          Save names
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                          onClick={() => setEditingUserId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="rounded border border-slate-300 px-3 py-1 font-semibold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-700"
+                        onClick={() => {
+                          setEditingUserId(user.id);
+                          setEditValues({ displayName: user.displayName, username: user.username });
+                          setMessage(null);
+                          setError(null);
+                        }}
+                        disabled={isPending}
+                      >
+                        Edit name
+                      </button>
+                    )}
                     {user.role === 'ADMIN' ? (
                       <button
                         type="button"
@@ -155,7 +240,8 @@ export function UserLifecycleManager({ users }: UserLifecycleManagerProps) {
                   </div>
                 </td>
               </tr>
-            ))}
+            );
+          })}
           </tbody>
         </table>
         {filteredUsers.length === 0 ? (

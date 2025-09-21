@@ -25,6 +25,7 @@ This guide expands on the README with the day‑to‑day tasks admins will perfo
 - **Demote or freeze** the outgoing admin once the successor is live. The platform prevents removing the final active admin—promote someone else first.
 - **Freeze/Reactivate** keeps rating history intact while removing access. Use it for alumni or sabbaticals.
 - **API alternative**: `PATCH /api/admin/users/:id` with `{ "role": "ADMIN" }` or `{ "active": false }` mirrors the UI actions.
+- **Edit display name / handle**: Click “Edit name” to adjust the member’s display name or `@handle`. Handles must be 3–32 lowercase characters (letters, digits, hyphen, underscore). Leave the handle blank to auto-generate a new slug from the display name.
 - **Checklist**: Always keep at least two active admins to avoid lockouts when people leave the lab.
 
 ## 2. Match Moderation

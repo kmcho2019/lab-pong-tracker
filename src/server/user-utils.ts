@@ -64,6 +64,43 @@ export async function generateUniqueUsername(
   }
 }
 
+const USERNAME_REGEX = /^[a-z0-9](?:[a-z0-9-_]{1,30}[a-z0-9])?$/;
+
+export function validateDisplayName(displayName: string) {
+  const normalized = normalizeDisplayName(displayName);
+  if (!normalized) {
+    throw new Error('Display name cannot be empty.');
+  }
+  if (normalized.length > 80) {
+    throw new Error('Display name must be 80 characters or fewer.');
+  }
+  return normalized;
+}
+
+export async function normalizeUsername(
+  prisma: Pick<PrismaClient, 'user'>,
+  desiredUsername: string,
+  options: { currentUserId: string; displayName: string }
+) {
+  const trimmed = (desiredUsername ?? '').trim();
+
+  if (!trimmed) {
+    return generateUniqueUsername(prisma, options.displayName);
+  }
+
+  const normalized = trimmed.toLowerCase();
+  if (!USERNAME_REGEX.test(normalized)) {
+    throw new Error('Handles must be 3-32 characters, lowercase, and may include hyphens/underscores.');
+  }
+
+  const collision = await prisma.user.findUnique({ where: { username: normalized } });
+  if (collision && collision.id !== options.currentUserId) {
+    throw new Error('Handle is already taken.');
+  }
+
+  return normalized;
+}
+
 export function computeInitialRatings(input: RatingSeedInput) {
   const baseRatingProvided = input.initialRating !== undefined;
   const singlesRatingProvided = input.initialSinglesRating !== undefined;

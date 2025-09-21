@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { Role } from '@prisma/client';
 import { auth } from '@/server/auth';
 import { prisma } from '@/lib/prisma';
+import { normalizeUsername, validateDisplayName } from '@/server/user-utils';
 
 const payloadSchema = z.object({
   role: z.nativeEnum(Role).optional(),
-  active: z.boolean().optional()
+  active: z.boolean().optional(),
+  displayName: z.string().optional(),
+  username: z.string().optional()
 });
 
 export const dynamic = 'force-dynamic';
@@ -60,20 +63,48 @@ export async function PATCH(request: Request, context: Context) {
     }
   }
 
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      role: updates.role ?? user.role,
-      active: updates.active ?? user.active
-    },
-    select: {
-      id: true,
-      displayName: true,
-      email: true,
-      role: true,
-      active: true
-    }
-  });
+  let nextDisplayName = user.displayName;
+  let nextUsername = user.username;
 
-  return NextResponse.json({ user: updated });
+  if (updates.displayName !== undefined) {
+    nextDisplayName = validateDisplayName(updates.displayName);
+  }
+
+  if (updates.username !== undefined) {
+    nextUsername = await normalizeUsername(prisma, updates.username, {
+      currentUserId: user.id,
+      displayName: nextDisplayName
+    });
+  }
+
+  const dataToUpdate: Record<string, unknown> = {};
+
+  if (nextRole !== user.role) dataToUpdate.role = nextRole;
+  if (nextActive !== user.active) dataToUpdate.active = nextActive;
+  if (nextDisplayName !== user.displayName) dataToUpdate.displayName = nextDisplayName;
+  if (nextUsername !== user.username) dataToUpdate.username = nextUsername;
+
+  const updatedUser = Object.keys(dataToUpdate).length
+    ? await prisma.user.update({
+        where: { id: user.id },
+        data: dataToUpdate,
+        select: {
+          id: true,
+          displayName: true,
+          email: true,
+          role: true,
+          active: true,
+          username: true
+        }
+      })
+    : {
+        id: user.id,
+        displayName: user.displayName,
+        email: user.email,
+        role: user.role,
+        active: user.active,
+        username: user.username
+      };
+
+  return NextResponse.json({ user: updatedUser });
 }

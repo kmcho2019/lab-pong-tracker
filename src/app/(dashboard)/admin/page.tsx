@@ -76,6 +76,7 @@ export default async function AdminPage() {
   ]);
 
   const duplicateNames = findDuplicateDisplayNames(members.map((member) => ({ displayName: member.displayName })));
+  const duplicateNameKeys = Array.from(duplicateNames);
 
   const tournaments = await prisma.tournament.findMany({
     orderBy: { startAt: 'desc' },
@@ -139,6 +140,7 @@ export default async function AdminPage() {
         users={members.map((member) => ({
           id: member.id,
           displayName: member.displayName,
+          username: member.username,
           email: member.email,
           role: member.role,
           active: member.active,
@@ -201,7 +203,7 @@ export default async function AdminPage() {
             }))
           }))
         }))}
-        duplicateNames={duplicateNames}
+        duplicateNames={duplicateNameKeys}
       />
     </div>
   );
