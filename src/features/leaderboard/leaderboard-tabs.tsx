@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import Link from 'next/link';
 import type { LeaderboardRow, LeaderboardMode } from '@/server/league-service';
 import { formatDistanceToNow } from '@/utils/time';
+import { findDuplicateDisplayNames, formatDisplayLabel } from '@/utils/name-format';
 
 type TabMode = LeaderboardMode;
 
@@ -16,6 +17,16 @@ interface LeaderboardTabsProps {
 
 export function LeaderboardTabs({ overall, singles, doubles }: LeaderboardTabsProps) {
   const [mode, setMode] = useState<TabMode>('overall');
+
+  const uniqueUsers = useMemo(() => {
+    const unique = new Map<string, { displayName: string }>();
+    [overall, singles, doubles].forEach((rows) => {
+      rows.forEach((row) => unique.set(row.id, { displayName: row.displayName }));
+    });
+    return Array.from(unique.values());
+  }, [overall, singles, doubles]);
+
+  const duplicateNames = useMemo(() => findDuplicateDisplayNames(uniqueUsers), [uniqueUsers]);
 
   const dataByMode = useMemo(
     () => ({
@@ -75,7 +86,7 @@ export function LeaderboardTabs({ overall, singles, doubles }: LeaderboardTabsPr
                 <td className="py-2 font-semibold">#{index + 1}</td>
                 <td className="py-2">
                   <Link href={`/players/${player.username}`} className="text-blue-600 hover:underline">
-                    {player.displayName}
+                    {formatDisplayLabel(player.displayName, player.username, duplicateNames)}
                   </Link>
                 </td>
                 <td className="py-2">{Math.round(player.glickoRating)}</td>

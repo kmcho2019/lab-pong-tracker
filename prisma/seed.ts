@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { PrismaClient, MatchStatus, MatchType } from '@prisma/client';
 import { recomputeLeague } from '../src/server/recompute';
+import { slugFromDisplayName } from '../src/server/user-utils';
 
 const prisma = new PrismaClient();
 
@@ -98,15 +99,6 @@ const matchesSeed = [
   }
 ];
 
-function toSlug(displayName: string) {
-  return displayName
-    .normalize('NFKD')
-    .replace(/[\p{Diacritic}]/gu, '')
-    .replace(/[^\p{Script=Hangul}a-zA-Z0-9]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase() || `player-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 async function main() {
   const allowlist = (process.env.EMAIL_ALLOWLIST ?? '')
     .split(',')
@@ -132,7 +124,7 @@ async function main() {
       create: {
         email: player.email,
         displayName: player.displayName,
-        username: toSlug(player.displayName),
+        username: slugFromDisplayName(player.displayName),
         image: player.image
       }
     });

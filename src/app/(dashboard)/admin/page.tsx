@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { AllowlistManager } from '@/features/admin/allowlist-manager';
 import { MatchManager } from '@/features/admin/match-manager';
 import { TournamentManager } from '@/features/admin/tournament-manager';
+import { UserLifecycleManager } from '@/features/admin/user-manager';
+import { findDuplicateDisplayNames } from '@/utils/name-format';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,17 +49,34 @@ export default async function AdminPage() {
     }))
   }));
 
-  const players = await prisma.user.findMany({
-    where: { active: true },
-    orderBy: { displayName: 'asc' },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      singlesRating: true,
-      doublesRating: true
-    }
-  });
+  const [players, members] = await Promise.all([
+    prisma.user.findMany({
+      where: { active: true },
+      orderBy: { displayName: 'asc' },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        singlesRating: true,
+        doublesRating: true
+      }
+    }),
+    prisma.user.findMany({
+      orderBy: { displayName: 'asc' },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        email: true,
+        role: true,
+        active: true,
+        lastMatchAt: true
+      }
+    })
+  ]);
+
+  const duplicateNames = findDuplicateDisplayNames(members.map((member) => ({ displayName: member.displayName })));
+  const duplicateNameKeys = Array.from(duplicateNames);
 
   const tournaments = await prisma.tournament.findMany({
     orderBy: { startAt: 'desc' },
@@ -117,6 +136,17 @@ export default async function AdminPage() {
           <AllowlistManager initialEntries={entries} />
         </div>
       </div>
+      <UserLifecycleManager
+        users={members.map((member) => ({
+          id: member.id,
+          displayName: member.displayName,
+          username: member.username,
+          email: member.email,
+          role: member.role,
+          active: member.active,
+          lastMatchAt: member.lastMatchAt ? member.lastMatchAt.toISOString() : null
+        }))}
+      />
       <MatchManager matches={serializedMatches} />
       <TournamentManager
         players={players.map((player) => ({
@@ -173,6 +203,7 @@ export default async function AdminPage() {
             }))
           }))
         }))}
+        duplicateNames={duplicateNameKeys}
       />
     </div>
   );

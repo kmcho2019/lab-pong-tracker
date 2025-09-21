@@ -22,6 +22,13 @@ A full-stack Next.js application for our lab’s single-game table tennis league
 - **Admin console** to manage the allowlist, edit/cancel matches, and kick off deterministic league recomputes.
 - **Tournament management** to draft round-robin groups, randomise doubles pairings, and let participants self-report scores that immediately flow into ratings.
 
+## Documentation Map
+
+- [Admin Onboarding & Batch Import](docs/ONBOARDING.md) — bootstrap a new club, seed players (with optional initial ratings), and promote the first admin.
+- [Admin & Database Operations](docs/ADMIN_GUIDE.md) — day-to-day console usage, allowlist edits, recomputes, and deployment notes.
+- [Implementation Deep Dive](docs/IMPLEMENTATION.md) — architecture, data model, and feature specification.
+- [Troubleshooting](docs/TROUBLESHOOTING.md) — quick fixes for common auth, database, and deployment hiccups.
+
 ## Local Development
 
 1. **Install dependencies**

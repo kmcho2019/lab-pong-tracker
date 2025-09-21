@@ -2,6 +2,11 @@
 
 This guide expands on the README with the day‑to‑day tasks admins will perform, plus the database management steps needed to keep the lab pong tracker healthy.
 
+## 0. Quick Start
+
+- Follow [ONBOARDING.md](./ONBOARDING.md) to seed your first admin account and batch import players.
+- Keep [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) handy for common setup problems.
+
 ## 1. Access Control & Allowlist
 
 1. Sign in with an existing admin account (role `ADMIN`).
@@ -10,29 +15,33 @@ This guide expands on the README with the day‑to‑day tasks admins will perfo
    - Enter the lab member’s email and optional note.
    - Click “Add to allowlist”.
    - The email appears in the table with timestamp.
-4. To revoke access, remove the address via psql or add a CLI helper (planned). For now, set `active = false` on the corresponding `User` row.
+4. To revoke access, either delete the allowlist entry or set the player’s `active` flag to `false` (see member lifecycle below).
 
 > Allowlist writes are logged in `AuditLog` (message `ALLOWLIST_ADDED` if you extend the API).
 
+### 1.1 Member Lifecycle & Admin Handover
+
+- **Promote a successor** via the **Member Lifecycle** grid. Click “Promote to admin” and confirm the new admin can reach `/admin`.
+- **Demote or freeze** the outgoing admin once the successor is live. The platform prevents removing the final active admin—promote someone else first.
+- **Freeze/Reactivate** keeps rating history intact while removing access. Use it for alumni or sabbaticals.
+- **API alternative**: `PATCH /api/admin/users/:id` with `{ "role": "ADMIN" }` or `{ "active": false }` mirrors the UI actions.
+- **Edit display name / handle**: Click “Edit name” to adjust the member’s display name or `@handle`. Handles must be 3–32 lowercase characters (letters, digits, hyphen, underscore). Leave the handle blank to auto-generate a new slug from the display name.
+- **Checklist**: Always keep at least two active admins to avoid lockouts when people leave the lab.
+
 ## 2. Match Moderation
 
-- **Confirm**: Players confirm via `/api/matches/:id/confirm` or future UI. Admins can call the same endpoint (requires session cookie) to force-confirm.
+- **Match manager UI**: `/admin` → “Match Management” collapses by default. Expand the section to edit scores, update participants, or cancel a match. Saving a change automatically triggers a rating recompute.
+- **Confirm**: Players confirm via `/api/matches/:id/confirm`. Admins can call the same endpoint (requires session cookie) to force-confirm if a player is unavailable.
 - **Dispute**: POST to `/api/matches/:id/dispute` with a reason string. Status changes to `DISPUTED`; rating updates are *not* rolled back automatically, so follow with recompute.
-- **Cancel/Edit**: Not yet implemented; advisable path is to dispute, adjust the DB row, then run a recompute (see below).
+- **API**: For scripted edits, use `PATCH /api/admin/matches/:id` with the same payload the match manager sends (scores, participants, target points, etc.).
 
 ## 3. Ratings Recompute
 
 Use when editing historical data or importing new matches.
 
-```bash
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "Cookie: next-auth.session-token=..." \
-  http://localhost:3000/api/admin/recompute
-```
-
-- Optional body `{ "from": "2025-01-01T00:00:00.000Z" }` replays from a specific date.
-- The routine resets `User` ratings/RD/volatility, truncates `RatingHistory`, clears cached deltas, and replays confirmed matches chronologically.
+- On `/admin` use the **Run recompute** button (Member Lifecycle section). Read the warning—replay recomputes every confirmed match and can take several seconds.
+- Optional API call: `POST /api/admin/recompute` with body `{ "from": "2025-01-01T00:00:00.000Z" }` to replay from a specific date.
+- The routine resets `User` ratings/RD/volatility`, truncates `RatingHistory`, clears cached deltas, and replays confirmed matches chronologically. Avoid running during peak usage.
 
 ## 4. Database Lifecycle
 
