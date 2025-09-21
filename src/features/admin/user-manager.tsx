@@ -28,6 +28,7 @@ export function UserLifecycleManager({ users }: UserLifecycleManagerProps) {
   const [isPending, startTransition] = useTransition();
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ displayName: string; username: string }>({ displayName: '', username: '' });
+  const [recomputePending, setRecomputePending] = useState(false);
   const router = useRouter();
 
   const duplicateNames = useMemo(() => findDuplicateDisplayNames(users.map(({ displayName }) => ({ displayName }))), [users]);
@@ -87,6 +88,46 @@ export function UserLifecycleManager({ users }: UserLifecycleManagerProps) {
       </div>
       {message ? <p className="rounded bg-emerald-100 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="rounded bg-rose-100 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
+
+      <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-700 dark:border-amber-500 dark:bg-amber-900/20 dark:text-amber-300">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-semibold">Ratings recompute</p>
+          <button
+            type="button"
+            className="rounded border border-amber-400 px-3 py-1 font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50 dark:border-amber-500 dark:text-amber-300 dark:hover:bg-amber-900/40"
+            onClick={() => {
+              if (!confirm('Recompute all ratings now? This can take several seconds and should be done sparingly.')) {
+                return;
+              }
+              setRecomputePending(true);
+              setMessage(null);
+              setError(null);
+              startTransition(async () => {
+                try {
+                  const response = await fetch('/api/admin/recompute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  if (!response.ok) {
+                    const body = await response.json().catch(() => ({}));
+                    setError(body.error || 'Failed to recompute ratings.');
+                  } else {
+                    setMessage('Ratings recompute started. Check logs for progress.');
+                  }
+                } catch (err) {
+                  setError('Failed to reach recompute endpoint.');
+                } finally {
+                  setRecomputePending(false);
+                }
+              });
+            }}
+            disabled={recomputePending || isPending}
+          >
+            {recomputePending ? 'Recomputing…' : 'Run recompute'}
+          </button>
+        </div>
+        <p className="mt-1">Re-run ratings only after bulk edits or disputes. The operation replays every confirmed match and can load the database heavily.</p>
+      </div>
 
       <div className="max-h-80 overflow-y-auto rounded border border-slate-200 dark:border-slate-700">
         <table className="w-full table-auto text-sm">

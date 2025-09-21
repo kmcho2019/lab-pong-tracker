@@ -39,15 +39,9 @@ This guide expands on the README with the day‑to‑day tasks admins will perfo
 
 Use when editing historical data or importing new matches.
 
-```bash
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "Cookie: next-auth.session-token=..." \
-  http://localhost:3000/api/admin/recompute
-```
-
-- Optional body `{ "from": "2025-01-01T00:00:00.000Z" }` replays from a specific date.
-- The routine resets `User` ratings/RD/volatility, truncates `RatingHistory`, clears cached deltas, and replays confirmed matches chronologically.
+- On `/admin` use the **Run recompute** button (Member Lifecycle section). Read the warning—replay recomputes every confirmed match and can take several seconds.
+- Optional API call: `POST /api/admin/recompute` with body `{ "from": "2025-01-01T00:00:00.000Z" }` to replay from a specific date.
+- The routine resets `User` ratings/RD/volatility`, truncates `RatingHistory`, clears cached deltas, and replays confirmed matches chronologically. Avoid running during peak usage.
 
 ## 4. Database Lifecycle
 

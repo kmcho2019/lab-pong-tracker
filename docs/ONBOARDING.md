@@ -59,7 +59,7 @@ The endpoint responds with counts of created, updated, and skipped users. Repeat
 
 1. Batch add all legacy players with their final-season ratings.
 2. Enter historical matches from oldest to newest using the match manager or a script against `/api/admin/matches/:id`.
-3. Run `POST /api/admin/recompute` when finished to ensure the rating history is deterministic.
+3. Use the **Run recompute** button on `/admin` (Member Lifecycle section) once to replay ratings. Only repeat when importing corrected history.
 
 ## 5. Next Steps
 
