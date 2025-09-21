@@ -205,51 +205,44 @@ export function MatchManager({ matches }: MatchManagerProps) {
       {errors ? <div className="mt-4 rounded bg-rose-100 px-3 py-2 text-rose-700">{errors}</div> : null}
       {!sectionCollapsed && (
         <div className="mt-6 space-y-6">
-        {matches.length === 0 ? (
-          <p className="text-sm text-slate-500">No confirmed matches found.</p>
-        ) : (
-          matches.map((match) => {
-            const participantsByTeam = [
-              match.participants.filter((participant) => participant.teamNo === 1),
-              match.participants.filter((participant) => participant.teamNo === 2)
-            ];
-            const state = formState.get(match.id) ?? initialState.get(match.id);
-            return (
-              <details
-                key={match.id}
-                className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
-                open={openMatches.has(match.id)}
-                onToggle={(event) => {
-                  const isOpen = (event.target as HTMLDetailsElement).open;
-                  setOpenMatches((prev) => {
-                    const next = new Set(prev);
-                    if (isOpen) {
-                      next.add(match.id);
-                    } else {
-                      next.delete(match.id);
-                    }
-                    return next;
-                  });
-                }}
-              >
-<<<<<<< HEAD
-                <summary className="cursor-pointer text-sm font-semibold">
-                  {formatDate(match.playedAt)} · {participantsByTeam[0].map((p) => p.displayName).join(' / ')} vs{' '}
-                  {participantsByTeam[1].map((p) => p.displayName).join(' / ')} · {match.team1Score} – {match.team2Score}
-=======
-            <summary className="cursor-pointer text-sm font-semibold">
-                  {formatDate(match.playedAt)} ·
-                  {' '}
-                  {participantsByTeam[0]
-                    .map((p) => formatDisplayLabel(p.displayName, p.username, duplicateNames))
-                    .join(' / ')}{' '}
-                  vs{' '}
-                  {participantsByTeam[1]
-                    .map((p) => formatDisplayLabel(p.displayName, p.username, duplicateNames))
-                    .join(' / ')}{' '}
-                  · {match.team1Score} – {match.team2Score}
->>>>>>> dev
-                </summary>
+          {matches.length === 0 ? (
+            <p className="text-sm text-slate-500">No confirmed matches found.</p>
+          ) : (
+            matches.map((match) => {
+              const participantsByTeam = [
+                match.participants.filter((participant) => participant.teamNo === 1),
+                match.participants.filter((participant) => participant.teamNo === 2)
+              ];
+              const state = formState.get(match.id) ?? initialState.get(match.id);
+              return (
+                <details
+                  key={match.id}
+                  className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"
+                  open={openMatches.has(match.id)}
+                  onToggle={(event) => {
+                    const isOpen = (event.target as HTMLDetailsElement).open;
+                    setOpenMatches((prev) => {
+                      const next = new Set(prev);
+                      if (isOpen) {
+                        next.add(match.id);
+                      } else {
+                        next.delete(match.id);
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <summary className="cursor-pointer text-sm font-semibold">
+                    {formatDate(match.playedAt)} ·{' '}
+                    {participantsByTeam[0]
+                      .map((p) => formatDisplayLabel(p.displayName, p.username, duplicateNames))
+                      .join(' / ')}{' '}
+                    vs{' '}
+                    {participantsByTeam[1]
+                      .map((p) => formatDisplayLabel(p.displayName, p.username, duplicateNames))
+                      .join(' / ')}{' '}
+                    · {match.team1Score} – {match.team2Score}
+                  </summary>
                 <div className="mt-4 space-y-4 text-sm">
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex flex-col gap-1">
@@ -391,9 +384,9 @@ export function MatchManager({ matches }: MatchManagerProps) {
                   </div>
                 </div>
               </details>
-            );
-          })
-        )}
+              );
+            })
+          )}
         </div>
       )}
     </div>

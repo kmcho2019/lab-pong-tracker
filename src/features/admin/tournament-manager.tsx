@@ -656,12 +656,6 @@ function TournamentCard({
             draft={draft}
             tournament={tournament}
             participantLookup={participantLookup}
-<<<<<<< HEAD
-            onChange={onDraftChange}
-          />
-        ) : (
-          <TournamentReadonly tournament={tournament} participantLookup={participantLookup} />
-=======
             duplicateNames={duplicateNames}
             onChange={onDraftChange}
           />
@@ -671,7 +665,6 @@ function TournamentCard({
             participantLookup={participantLookup}
             duplicateNames={duplicateNames}
           />
->>>>>>> dev
         )
       )}
     </div>
