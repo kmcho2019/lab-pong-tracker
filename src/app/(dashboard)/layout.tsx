@@ -6,6 +6,7 @@ const navLinks = [
   { href: '/', label: 'Leaderboard' },
   { href: '/history', label: 'History' },
   { href: '/players', label: 'Players' },
+  { href: '/tournaments', label: 'Tournaments' },
   { href: '/submit', label: 'Submit' }
 ];
 

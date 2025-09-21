@@ -44,6 +44,7 @@ interface TournamentDetailGroup {
       id: string;
       username: string;
       displayName: string;
+      rating: number;
     };
   }>;
   matchups: TournamentDetailMatch[];
@@ -216,7 +217,10 @@ export function TournamentDetailClient({ tournament, userId, role }: TournamentD
                     className={clsx('flex items-center justify-between rounded px-2 py-1', participant.userId === userId && 'bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200')}
                   >
                     <span>{participant.user.displayName}</span>
-                    <span className="text-xs text-slate-400">@{participant.user.username}</span>
+                    <span className="flex items-center gap-2 text-xs text-slate-400">
+                      <span>{Math.round(participant.user.rating)}</span>
+                      <span>@{participant.user.username}</span>
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -52,6 +52,7 @@ export interface TournamentDetailGroupDTO {
       id: string;
       username: string;
       displayName: string;
+      rating: number;
     };
   }>;
   matchups: TournamentDetailMatchDTO[];
@@ -394,7 +395,9 @@ export async function getTournamentDetail(id: string): Promise<TournamentDetailD
                 select: {
                   id: true,
                   displayName: true,
-                  username: true
+                  username: true,
+                  singlesRating: true,
+                  doublesRating: true
                 }
               }
             }
@@ -456,7 +459,11 @@ export async function getTournamentDetail(id: string): Promise<TournamentDetailD
         user: {
           id: participant.user.id,
           username: participant.user.username,
-          displayName: participant.user.displayName
+          displayName: participant.user.displayName,
+          rating:
+            tournament.mode === TournamentMode.SINGLES
+              ? participant.user.singlesRating ?? 1500
+              : participant.user.doublesRating ?? 1500
         }
       })),
       matchups: group.matchups.map((matchup) => ({
@@ -686,27 +693,71 @@ export function distributeIntoGroups(
 }
 
 export function generateSinglesPairings(participantIds: string[], limit: number) {
-  if (participantIds.length < 2 || limit <= 0) return [] as Array<{ team1: string[]; team2: string[] }>;
+  if (participantIds.length < 2 || limit <= 0) {
+    return [] as Array<{ team1: string[]; team2: string[] }>;
+  }
+
+  const rounds = roundRobinRounds(participantIds);
+  const counts = Object.fromEntries(participantIds.map((id) => [id, 0])) as Record<string, number>;
   const pairs: Array<{ team1: string[]; team2: string[] }> = [];
-  const schedule = roundRobin(participantIds);
-  schedule.some((matchup) => {
-    pairs.push({ team1: [matchup[0]], team2: [matchup[1]] });
-    return pairs.length >= limit;
-  });
-  return pairs.slice(0, limit);
+  const maxMatches = Math.min(limit, rounds.reduce((acc, round) => acc + round.length, 0));
+
+  for (const round of rounds) {
+    if (pairs.length >= maxMatches) break;
+    if (round.length === 0) continue;
+
+    const remainingCapacity = maxMatches - pairs.length;
+
+    if (round.length <= remainingCapacity) {
+      for (const [home, away] of round) {
+        pairs.push({ team1: [home], team2: [away] });
+        counts[home] = (counts[home] ?? 0) + 1;
+        counts[away] = (counts[away] ?? 0) + 1;
+      }
+      continue;
+    }
+
+    const available = [...round];
+    while (pairs.length < maxMatches && available.length > 0) {
+      available.sort((a, b) => {
+        const [aHome, aAway] = a;
+        const [bHome, bAway] = b;
+        const aMax = Math.max(counts[aHome] ?? 0, counts[aAway] ?? 0);
+        const bMax = Math.max(counts[bHome] ?? 0, counts[bAway] ?? 0);
+        if (aMax !== bMax) return aMax - bMax;
+        const aSum = (counts[aHome] ?? 0) + (counts[aAway] ?? 0);
+        const bSum = (counts[bHome] ?? 0) + (counts[bAway] ?? 0);
+        if (aSum !== bSum) return aSum - bSum;
+        return participantIds.indexOf(aHome) - participantIds.indexOf(bHome);
+      });
+
+      const selected = available.shift();
+      if (!selected) break;
+      const [home, away] = selected;
+      pairs.push({ team1: [home], team2: [away] });
+      counts[home] = (counts[home] ?? 0) + 1;
+      counts[away] = (counts[away] ?? 0) + 1;
+    }
+  }
+
+  return pairs;
 }
 
-function roundRobin(players: string[]) {
+function roundRobinRounds(players: string[]) {
   const list = [...players];
+  if (list.length <= 1) {
+    return [] as Array<Array<[string, string]>>;
+  }
   if (list.length % 2 === 1) {
     list.push('BYE');
   }
-  const rounds: Array<[string, string]> = [];
+
   const half = list.length / 2;
   const rotation = list.slice(1);
   const totalRounds = list.length - 1;
+  const rounds: Array<Array<[string, string]>> = [];
 
-  for (let round = 0; round < totalRounds; round += 1) {
+  for (let roundIndex = 0; roundIndex < totalRounds; roundIndex += 1) {
     const roundPairs: Array<[string, string]> = [];
     const left = [list[0], ...rotation.slice(0, half - 1)];
     const right = rotation.slice(half - 1).reverse();
@@ -719,8 +770,7 @@ function roundRobin(players: string[]) {
       }
     }
 
-    rounds.push(...roundPairs);
-
+    rounds.push(roundPairs);
     rotation.push(rotation.shift()!);
   }
 
