@@ -1,5 +1,30 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { distributeIntoGroups, generateSinglesPairings, generateDoublesPairings } from '@/server/tournament-service';
+import {
+  distributeIntoGroups,
+  generateSinglesPairings,
+  generateDoublesPairings
+} from '@/server/tournament-service';
+
+function matchCounts(pairings: Array<{ team1: string[]; team2: string[] }>) {
+  const counts = new Map<string, number>();
+  pairings.forEach((pair) => {
+    pair.team1.concat(pair.team2).forEach((id) => {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    });
+  });
+  return counts;
+}
+
+function maxDifference(values: Iterable<number>) {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return 0;
+  return max - min;
+}
 
 describe('distributeIntoGroups', () => {
   it('uses serpentine distribution by rating order', () => {
@@ -31,6 +56,35 @@ describe('generateSinglesPairings', () => {
       expect(match.team1).toHaveLength(1);
       expect(match.team2).toHaveLength(1);
       expect(match.team1[0]).not.toBe(match.team2[0]);
+    });
+  });
+
+  it('keeps per-player match counts balanced when the limit truncates the final round', () => {
+    const ids = ['p1', 'p2', 'p3', 'p4', 'p5'];
+    const pairings = generateSinglesPairings(ids, 8); // 8 < C(5,2)=10
+    expect(pairings).toHaveLength(8);
+
+    const counts = matchCounts(pairings);
+    expect(counts.size).toBe(ids.length);
+    expect(maxDifference(counts.values())).toBeLessThanOrEqual(1);
+  });
+
+  it('allocates everyone evenly with uneven group sizes (5/4 split, 8 matches each)', () => {
+    const ninePlayers = Array.from({ length: 9 }, (_, index) => ({
+      id: `p${index + 1}`,
+      displayName: `Player ${index + 1}`
+    }));
+    const groups = distributeIntoGroups(ninePlayers, ['A', 'B']);
+
+    expect(groups.map((group) => group.participants.length)).toEqual([5, 4]);
+
+    groups.forEach((group) => {
+      const ids = group.participants.map((p) => p.id);
+      const pairings = generateSinglesPairings(ids, 8);
+      const possiblePairs = (ids.length * (ids.length - 1)) / 2;
+      expect(pairings.length).toBeLessThanOrEqual(8);
+      expect(pairings.length).toBeLessThanOrEqual(possiblePairs);
+      expect(maxDifference(matchCounts(pairings).values())).toBeLessThanOrEqual(1);
     });
   });
 });
@@ -67,5 +121,49 @@ describe('generateDoublesPairings', () => {
     counts.forEach((value) => {
       expect(value).toBeLessThanOrEqual(maxPerPlayer);
     });
+  });
+});
+
+describe('end-to-end group allocation heuristics', () => {
+  it('keeps rating averages similar across groups using serpentine draft', () => {
+    const participants = Array.from({ length: 10 }, (_, index) => ({
+      id: `p${index + 1}`,
+      displayName: `Player ${index + 1}`,
+      rating: 2400 - index * 100
+    }));
+
+    const groups = distributeIntoGroups(
+      participants.map(({ id, displayName }) => ({ id, displayName })),
+      ['A', 'B', 'C']
+    );
+
+    const ratingsById = new Map(participants.map((p) => [p.id, p.rating]));
+
+    const averages = groups.map((group) => {
+      const ratings = group.participants.map((participant) => ratingsById.get(participant.id) ?? 0);
+      const total = ratings.reduce((sum, value) => sum + value, 0);
+      return total / ratings.length;
+    });
+
+    expect(maxDifference(averages)).toBeLessThanOrEqual(220);
+    const sizes = groups.map((group) => group.participants.length);
+    expect(maxDifference(sizes)).toBeLessThanOrEqual(1);
+  });
+
+  it('covers all possible combinations when the requested limit is high', () => {
+    const players = ['a', 'b', 'c', 'd'];
+    const pairings = generateSinglesPairings(players, 20);
+    expect(pairings).toHaveLength(6);
+    const counts = matchCounts(pairings);
+    expect(counts.size).toBe(players.length);
+    expect(maxDifference(counts.values())).toBeLessThanOrEqual(1);
+  });
+
+  it('handles minimal groups gracefully', () => {
+    const pairings = generateSinglesPairings(['x', 'y'], 5);
+    expect(pairings).toEqual([{ team1: ['x'], team2: ['y'] }]);
+
+    const empty = generateSinglesPairings(['solo'], 3);
+    expect(empty).toEqual([]);
   });
 });
