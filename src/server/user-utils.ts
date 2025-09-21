@@ -64,7 +64,7 @@ export async function generateUniqueUsername(
   }
 }
 
-const USERNAME_REGEX = /^[a-z0-9](?:[a-z0-9-_]{1,30}[a-z0-9])?$/;
+const USERNAME_REGEX = /^[a-z0-9][a-z0-9-_]{1,30}[a-z0-9]$/;
 
 export function validateDisplayName(displayName: string) {
   const normalized = normalizeDisplayName(displayName);

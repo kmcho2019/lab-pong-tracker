@@ -66,15 +66,19 @@ export async function PATCH(request: Request, context: Context) {
   let nextDisplayName = user.displayName;
   let nextUsername = user.username;
 
-  if (updates.displayName !== undefined) {
-    nextDisplayName = validateDisplayName(updates.displayName);
-  }
+  try {
+    if (updates.displayName !== undefined) {
+      nextDisplayName = validateDisplayName(updates.displayName);
+    }
 
-  if (updates.username !== undefined) {
-    nextUsername = await normalizeUsername(prisma, updates.username, {
-      currentUserId: user.id,
-      displayName: nextDisplayName
-    });
+    if (updates.username !== undefined) {
+      nextUsername = await normalizeUsername(prisma, updates.username, {
+        currentUserId: user.id,
+        displayName: nextDisplayName
+      });
+    }
+  } catch (validationError: any) {
+    return NextResponse.json({ error: validationError.message ?? 'Invalid input.' }, { status: 400 });
   }
 
   const dataToUpdate: Record<string, unknown> = {};
