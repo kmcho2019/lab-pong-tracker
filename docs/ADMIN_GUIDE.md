@@ -19,6 +19,14 @@ This guide expands on the README with the day‑to‑day tasks admins will perfo
 
 > Allowlist writes are logged in `AuditLog` (message `ALLOWLIST_ADDED` if you extend the API).
 
+### 1.1 Member Lifecycle & Admin Handover
+
+- **Promote a successor** via the **Member Lifecycle** grid. Click “Promote to admin” and confirm the new admin can reach `/admin`.
+- **Demote or freeze** the outgoing admin once the successor is live. The platform prevents removing the final active admin—promote someone else first.
+- **Freeze/Reactivate** keeps rating history intact while removing access. Use it for alumni or sabbaticals.
+- **API alternative**: `PATCH /api/admin/users/:id` with `{ "role": "ADMIN" }` or `{ "active": false }` mirrors the UI actions.
+- **Checklist**: Always keep at least two active admins to avoid lockouts when people leave the lab.
+
 ## 2. Match Moderation
 
 - **Match manager UI**: `/admin` → “Match Management” collapses by default. Expand the section to edit scores, update participants, or cancel a match. Saving a change automatically triggers a rating recompute.

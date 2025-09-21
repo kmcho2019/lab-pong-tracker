@@ -50,8 +50,9 @@ The endpoint responds with counts of created, updated, and skipped users. Repeat
 ## 3. Verify Access
 
 1. Navigate to `/admin`.
-2. Confirm the **Allowlist**, **Match Management**, and **Tournament Manager** sections load.
+2. Confirm the **Allowlist**, **Member Lifecycle**, **Match Management**, and **Tournament Manager** sections load.
 3. Use the **Allowlist** panel to invite additional members (or automate via the batch endpoint).
+4. Use **Member Lifecycle** to promote a co-admin immediately so there is always a backup.
 
 ## 4. Optional: Import Historical Results
 
@@ -64,5 +65,6 @@ The endpoint responds with counts of created, updated, and skipped users. Repeat
 - Share the `/submit` link and confirm the submit form recognises the seeded players.
 - Visit `/players` to verify ratings and `/tournaments` to double-check filters.
 - Update the README and docs links for your club wiki so future admins know where to start.
+- Document the hand-off plan (see **Admin Transitions** in `docs/ADMIN_GUIDE.md`).
 
 See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common setup issues.
