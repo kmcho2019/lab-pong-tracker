@@ -5,6 +5,7 @@ import { AllowlistManager } from '@/features/admin/allowlist-manager';
 import { MatchManager } from '@/features/admin/match-manager';
 import { TournamentManager } from '@/features/admin/tournament-manager';
 import { UserLifecycleManager } from '@/features/admin/user-manager';
+import { findDuplicateDisplayNames } from '@/utils/name-format';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,18 +62,20 @@ export default async function AdminPage() {
       }
     }),
     prisma.user.findMany({
-    orderBy: { displayName: 'asc' },
-    select: {
-      id: true,
-      username: true,
-      displayName: true,
-      email: true,
-      role: true,
-      active: true,
-      lastMatchAt: true
-    }
-  })
+      orderBy: { displayName: 'asc' },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        email: true,
+        role: true,
+        active: true,
+        lastMatchAt: true
+      }
+    })
   ]);
+
+  const duplicateNames = findDuplicateDisplayNames(members.map((member) => ({ displayName: member.displayName })));
 
   const tournaments = await prisma.tournament.findMany({
     orderBy: { startAt: 'desc' },
@@ -198,6 +201,7 @@ export default async function AdminPage() {
             }))
           }))
         }))}
+        duplicateNames={duplicateNames}
       />
     </div>
   );

@@ -53,6 +53,7 @@ The endpoint responds with counts of created, updated, and skipped users. Repeat
 2. Confirm the **Allowlist**, **Member Lifecycle**, **Match Management**, and **Tournament Manager** sections load.
 3. Use the **Allowlist** panel to invite additional members (or automate via the batch endpoint).
 4. Use **Member Lifecycle** to promote a co-admin immediately so there is always a backup.
+5. Duplicate display names are disambiguated automatically in the UI (`Alex Kim (@alex)`), so you can reuse existing nicknames without confusion.
 
 ## 4. Optional: Import Historical Results
 

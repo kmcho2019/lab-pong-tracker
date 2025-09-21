@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { formatDate, toLeagueIso, LEAGUE_TIMEZONE, leagueDayjs } from '@/utils/time';
+import { findDuplicateDisplayNames, formatDisplayLabel } from '@/utils/name-format';
 
 export interface AdminMatchParticipant {
   id: string;
@@ -50,6 +51,11 @@ export function MatchManager({ matches }: MatchManagerProps) {
   const [errors, setErrors] = useState<string | null>(null);
   const [sectionCollapsed, setSectionCollapsed] = useState(false);
   const [openMatches, setOpenMatches] = useState<Set<string>>(() => new Set());
+
+  const duplicateNames = useMemo(() => {
+    const participants = matches.flatMap((match) => match.participants.map((participant) => participant.displayName));
+    return findDuplicateDisplayNames(participants.map((displayName) => ({ displayName })));
+  }, [matches]);
 
   const initialState = useMemo(() => {
     const map = new Map<string, MatchFormState>();
@@ -226,9 +232,17 @@ export function MatchManager({ matches }: MatchManagerProps) {
                   });
                 }}
               >
-                <summary className="cursor-pointer text-sm font-semibold">
-                  {formatDate(match.playedAt)} · {participantsByTeam[0].map((p) => p.displayName).join(' / ')} vs{' '}
-                  {participantsByTeam[1].map((p) => p.displayName).join(' / ')} · {match.team1Score} – {match.team2Score}
+            <summary className="cursor-pointer text-sm font-semibold">
+                  {formatDate(match.playedAt)} ·
+                  {' '}
+                  {participantsByTeam[0]
+                    .map((p) => formatDisplayLabel(p.displayName, p.username, duplicateNames))
+                    .join(' / ')}{' '}
+                  vs{' '}
+                  {participantsByTeam[1]
+                    .map((p) => formatDisplayLabel(p.displayName, p.username, duplicateNames))
+                    .join(' / ')}{' '}
+                  · {match.team1Score} – {match.team2Score}
                 </summary>
                 <div className="mt-4 space-y-4 text-sm">
                   <div className="grid gap-3 md:grid-cols-2">
@@ -264,7 +278,9 @@ export function MatchManager({ matches }: MatchManagerProps) {
                       />
                       <span className="text-xs text-slate-500">
                         {participantsByTeam[0]
-                          .map((participant) => `${participant.displayName} (${participant.userId})`)
+                          .map((participant) =>
+                            `${formatDisplayLabel(participant.displayName, participant.username, duplicateNames)} (${participant.userId})`
+                          )
                           .join(', ')}
                       </span>
                     </label>
@@ -278,7 +294,9 @@ export function MatchManager({ matches }: MatchManagerProps) {
                       />
                       <span className="text-xs text-slate-500">
                         {participantsByTeam[1]
-                          .map((participant) => `${participant.displayName} (${participant.userId})`)
+                          .map((participant) =>
+                            `${formatDisplayLabel(participant.displayName, participant.username, duplicateNames)} (${participant.userId})`
+                          )
                           .join(', ')}
                       </span>
                     </label>

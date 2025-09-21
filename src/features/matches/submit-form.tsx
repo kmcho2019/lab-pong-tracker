@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { z } from 'zod';
 import { matchPayloadSchema } from '@/lib/validators';
 import { toLeagueIso } from '@/utils/time';
+import { findDuplicateDisplayNames, formatDisplayLabel } from '@/utils/name-format';
 
 interface UserOption {
   id: string;
@@ -42,6 +43,10 @@ export function SubmitMatchForm() {
   });
 
   const players = usersData?.users ?? [];
+  const duplicateNames = useMemo(
+    () => findDuplicateDisplayNames((usersData?.users ?? []).map((player) => ({ displayName: player.displayName }))),
+    [usersData?.users]
+  );
 
   const matchMutation = useMutation({
     mutationFn: async () => {
@@ -134,6 +139,7 @@ export function SubmitMatchForm() {
       <TeamSelector
         title="Team 1"
         players={players}
+        duplicates={duplicateNames}
         values={team1}
         onChange={setTeam1}
         slotCount={teamSlotCount}
@@ -142,6 +148,7 @@ export function SubmitMatchForm() {
       <TeamSelector
         title="Team 2"
         players={players}
+        duplicates={duplicateNames}
         values={team2}
         onChange={setTeam2}
         slotCount={teamSlotCount}
@@ -244,12 +251,13 @@ export function SubmitMatchForm() {
 interface TeamSelectorProps {
   title: string;
   players: UserOption[];
+  duplicates: Set<string>;
   values: string[];
   slotCount: number;
   onChange(values: string[]): void;
 }
 
-function TeamSelector({ title, players, values, slotCount, onChange }: TeamSelectorProps) {
+function TeamSelector({ title, players, duplicates, values, slotCount, onChange }: TeamSelectorProps) {
   return (
     <fieldset className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
       <legend className="px-2 text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -271,7 +279,7 @@ function TeamSelector({ title, players, values, slotCount, onChange }: TeamSelec
               <option value="">Select player</option>
               {players.map((player) => (
                 <option key={player.id} value={player.id}>
-                  {player.displayName} · {Math.round(player.glickoRating)}
+                  {formatDisplayLabel(player.displayName, player.username, duplicates)} · {Math.round(player.glickoRating)}
                 </option>
               ))}
             </select>

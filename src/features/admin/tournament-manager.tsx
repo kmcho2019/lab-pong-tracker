@@ -10,6 +10,7 @@ import {
   TournamentStatus
 } from '@prisma/client';
 import { formatDate, leagueDayjs, toLeagueIso } from '@/utils/time';
+import { formatDisplayLabel } from '@/utils/name-format';
 
 interface AdminPlayer {
   id: string;
@@ -74,6 +75,7 @@ interface AdminTournament {
 interface TournamentManagerProps {
   players: AdminPlayer[];
   tournaments: AdminTournament[];
+  duplicateNames: Set<string>;
 }
 
 interface CreateFormState {
@@ -115,7 +117,7 @@ type DraftMatch = {
 
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
-export function TournamentManager({ players, tournaments }: TournamentManagerProps) {
+export function TournamentManager({ players, tournaments, duplicateNames }: TournamentManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -151,6 +153,7 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
     });
     return map;
   }, [players, tournaments]);
+
 
   const toggleSelection = (id: string) => {
     setForm((previous) => {
@@ -489,6 +492,7 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
               key={tournament.id}
               tournament={tournament}
               participantLookup={participantLookup}
+              duplicateNames={duplicateNames}
               isEditing={editing?.id === tournament.id}
               draft={editing?.id === tournament.id ? editing.draft : null}
               onEdit={() => beginEdit(tournament)}
@@ -508,6 +512,7 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
 interface TournamentCardProps {
   tournament: AdminTournament;
   participantLookup: ParticipantLookup;
+  duplicateNames: Set<string>;
   isEditing: boolean;
   draft: DraftTournament | null;
   onEdit: () => void;
@@ -521,6 +526,7 @@ interface TournamentCardProps {
 function TournamentCard({
   tournament,
   participantLookup,
+  duplicateNames,
   isEditing,
   draft,
   onEdit,
@@ -637,10 +643,15 @@ function TournamentCard({
             draft={draft}
             tournament={tournament}
             participantLookup={participantLookup}
+            duplicateNames={duplicateNames}
             onChange={onDraftChange}
           />
         ) : (
-          <TournamentReadonly tournament={tournament} participantLookup={participantLookup} />
+          <TournamentReadonly
+            tournament={tournament}
+            participantLookup={participantLookup}
+            duplicateNames={duplicateNames}
+          />
         )
       )}
     </div>
@@ -650,9 +661,10 @@ function TournamentCard({
 interface TournamentReadonlyProps {
   tournament: AdminTournament;
   participantLookup: ParticipantLookup;
+  duplicateNames: Set<string>;
 }
 
-function TournamentReadonly({ tournament, participantLookup }: TournamentReadonlyProps) {
+function TournamentReadonly({ tournament, participantLookup, duplicateNames }: TournamentReadonlyProps) {
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {tournament.groups.map((group) => (
@@ -665,7 +677,9 @@ function TournamentReadonly({ tournament, participantLookup }: TournamentReadonl
           </div>
           <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
             {group.participants.map((participant) => (
-              <li key={participant.userId}>{participant.user.displayName}</li>
+              <li key={participant.userId}>
+                {formatDisplayLabel(participant.user.displayName, participant.user.username, duplicateNames)}
+              </li>
             ))}
           </ul>
           <div className="space-y-2 text-xs text-slate-500 dark:text-slate-400">
@@ -679,8 +693,9 @@ function TournamentReadonly({ tournament, participantLookup }: TournamentReadonl
                 return (
                   <div key={match.id} className="rounded border border-slate-200 px-2 py-2 dark:border-slate-600">
                     <div className="font-medium text-slate-600 dark:text-slate-200">
-                      {teamLabel(match.team1Ids, participantLookup)} <span className="mx-1 text-slate-400">vs</span>{' '}
-                      {teamLabel(match.team2Ids, participantLookup)}
+                      {teamLabel(match.team1Ids, participantLookup, duplicateNames)}{' '}
+                      <span className="mx-1 text-slate-400">vs</span>{' '}
+                      {teamLabel(match.team2Ids, participantLookup, duplicateNames)}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-slate-400">
                       <span>{match.status}</span>
@@ -702,10 +717,11 @@ interface TournamentEditorProps {
   draft: DraftTournament;
   tournament: AdminTournament;
   participantLookup: ParticipantLookup;
+  duplicateNames: Set<string>;
   onChange: (draft: DraftTournament) => void;
 }
 
-function TournamentEditor({ draft, tournament, participantLookup, onChange }: TournamentEditorProps) {
+function TournamentEditor({ draft, tournament, participantLookup, duplicateNames, onChange }: TournamentEditorProps) {
   const teamSize = tournament.mode === TournamentMode.DOUBLES ? 2 : 1;
   const allParticipants = tournament.participants;
 
@@ -784,7 +800,11 @@ function TournamentEditor({ draft, tournament, participantLookup, onChange }: To
                   <option value="">Select participant</option>
                   {available.map((participant) => (
                     <option key={participant.userId} value={participant.userId}>
-                      {participant.user.displayName}
+                      {formatDisplayLabel(
+                        participant.user.displayName,
+                        participant.user.username,
+                        duplicateNames
+                      )}
                     </option>
                   ))}
                 </select>
@@ -797,7 +817,13 @@ function TournamentEditor({ draft, tournament, participantLookup, onChange }: To
               ) : (
                 group.participantIds.map((userId) => (
                   <div key={userId} className="flex items-center justify-between rounded border border-slate-200 px-2 py-1 dark:border-slate-600">
-                    <span>{participantLookup.get(userId)?.displayName ?? userId}</span>
+                    <span>
+                      {formatDisplayLabel(
+                        participantLookup.get(userId)?.displayName ?? userId,
+                        participantLookup.get(userId)?.username ?? userId,
+                        duplicateNames
+                      )}
+                    </span>
                     <button
                       type="button"
                       className="text-rose-600 hover:underline"
@@ -830,6 +856,7 @@ function TournamentEditor({ draft, tournament, participantLookup, onChange }: To
                         teamSize={teamSize}
                         groupParticipants={group.participantIds}
                         participantLookup={participantLookup}
+                        duplicateNames={duplicateNames}
                         onChange={(team) => updateMatch(group.id, match.id, (current) => ({ ...current, team1Ids: team }))}
                       />
                       <TeamEditor
@@ -838,6 +865,7 @@ function TournamentEditor({ draft, tournament, participantLookup, onChange }: To
                         teamSize={teamSize}
                         groupParticipants={group.participantIds}
                         participantLookup={participantLookup}
+                        duplicateNames={duplicateNames}
                         onChange={(team) => updateMatch(group.id, match.id, (current) => ({ ...current, team2Ids: team }))}
                       />
                     </div>
@@ -891,10 +919,11 @@ interface TeamEditorProps {
   teamSize: number;
   groupParticipants: string[];
   participantLookup: ParticipantLookup;
+  duplicateNames: Set<string>;
   onChange: (next: string[]) => void;
 }
 
-function TeamEditor({ label, team, teamSize, groupParticipants, participantLookup, onChange }: TeamEditorProps) {
+function TeamEditor({ label, team, teamSize, groupParticipants, participantLookup, duplicateNames, onChange }: TeamEditorProps) {
   const nextTeam = useMemo(() => {
     const copy = [...team];
     while (copy.length < teamSize) {
@@ -922,7 +951,11 @@ function TeamEditor({ label, team, teamSize, groupParticipants, participantLooku
           <option value="">Select player</option>
           {groupParticipants.map((userId) => (
             <option key={userId} value={userId}>
-              {participantLookup.get(userId)?.displayName ?? userId}
+              {formatDisplayLabel(
+                participantLookup.get(userId)?.displayName ?? userId,
+                participantLookup.get(userId)?.username ?? userId,
+                duplicateNames
+              )}
             </option>
           ))}
         </select>
@@ -941,7 +974,13 @@ function StatusBadge({ status }: { status: TournamentStatus }) {
   return <span className={className}>{status.toLowerCase()}</span>;
 }
 
-function teamLabel(ids: string[], lookup: ParticipantLookup) {
+function teamLabel(ids: string[], lookup: ParticipantLookup, duplicates: Set<string>) {
   if (!ids || ids.length === 0) return 'TBD';
-  return ids.map((id) => lookup.get(id)?.displayName ?? id).join(' / ');
+  return ids
+    .map((id) => {
+      const participant = lookup.get(id);
+      if (!participant) return id;
+      return formatDisplayLabel(participant.displayName, participant.username, duplicates);
+    })
+    .join(' / ');
 }
