@@ -3,7 +3,12 @@
 import { useMemo, useState, useTransition } from 'react';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
-import { TournamentMatchStatus, TournamentMode, TournamentStatus } from '@prisma/client';
+import {
+  TournamentMatchCountMode,
+  TournamentMatchStatus,
+  TournamentMode,
+  TournamentStatus
+} from '@prisma/client';
 import { formatDate, formatDistanceToNow, leagueDayjs } from '@/utils/time';
 
 interface TournamentDetailClientProps {
@@ -17,7 +22,9 @@ interface TournamentDetail {
   name: string;
   mode: TournamentMode;
   status: TournamentStatus;
-  gamesPerGroup: number;
+  matchCountMode: TournamentMatchCountMode;
+  matchesPerPlayer: number | null;
+  gamesPerGroup: number | null;
   startAt: string;
   endAt: string;
   participants: TournamentDetailParticipant[];
@@ -112,6 +119,10 @@ export function TournamentDetailClient({ tournament, userId, role }: TournamentD
   const start = leagueDayjs(tournament.startAt);
   const end = leagueDayjs(tournament.endAt);
   const isWithinWindow = now.isAfter(start) && now.isBefore(end);
+  const matchCountLabel =
+    tournament.matchCountMode === 'PER_PLAYER'
+      ? `${tournament.matchesPerPlayer ?? '–'} match${(tournament.matchesPerPlayer ?? 0) === 1 ? '' : 'es'} / player`
+      : `${tournament.gamesPerGroup ?? '–'} total games`;
 
   const handleOpenReport = (groupId: string, matchId: string) => {
     setActiveReport({ groupId, matchId });
@@ -180,7 +191,7 @@ export function TournamentDetailClient({ tournament, userId, role }: TournamentD
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
               <StatusBadge status={tournament.status} />
               <span>{tournament.mode}</span>
-              <span>Games / group: {tournament.gamesPerGroup}</span>
+              <span>{matchCountLabel}</span>
             </div>
           </div>
           <div className="text-right text-sm text-slate-500">

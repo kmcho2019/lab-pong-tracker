@@ -223,12 +223,19 @@ enum TournamentMatchStatus {
   CANCELLED
 }
 
+enum TournamentMatchCountMode {
+  PER_PLAYER
+  TOTAL_MATCHES
+}
+
 model Tournament {
   id            String            @id @default(cuid())
   name          String
   mode          TournamentMode
   status        TournamentStatus @default(SCHEDULED)
-  gamesPerGroup Int              @default(8)
+  matchCountMode TournamentMatchCountMode @default(PER_PLAYER)
+  matchesPerPlayer Int?          @default(3)
+  gamesPerGroup Int?             @default(8)
   startAt       DateTime
   endAt         DateTime
   createdAt     DateTime         @default(now())

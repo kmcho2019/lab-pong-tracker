@@ -3,7 +3,12 @@
 import { useMemo, useState, useTransition } from 'react';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
-import { TournamentMatchStatus, TournamentMode, TournamentStatus } from '@prisma/client';
+import {
+  TournamentMatchCountMode,
+  TournamentMatchStatus,
+  TournamentMode,
+  TournamentStatus
+} from '@prisma/client';
 import { formatDate, leagueDayjs, toLeagueIso } from '@/utils/time';
 
 interface AdminPlayer {
@@ -57,7 +62,9 @@ interface AdminTournament {
   name: string;
   mode: TournamentMode;
   status: TournamentStatus;
-  gamesPerGroup: number;
+  matchCountMode: TournamentMatchCountMode;
+  matchesPerPlayer: number | null;
+  gamesPerGroup: number | null;
   startAt: string;
   endAt: string;
   participants: AdminTournamentParticipant[];
@@ -75,6 +82,8 @@ interface CreateFormState {
   startAt: string;
   endAt: string;
   groupCount: number;
+  matchCountMode: TournamentMatchCountMode;
+  matchesPerPlayer: number;
   gamesPerGroup: number;
   selectedIds: Set<string>;
 }
@@ -82,6 +91,9 @@ interface CreateFormState {
 type DraftTournament = {
   id: string;
   status: TournamentStatus;
+  matchCountMode: TournamentMatchCountMode;
+  matchesPerPlayer: number | null;
+  gamesPerGroup: number | null;
   groups: DraftGroup[];
 };
 
@@ -116,6 +128,8 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
     startAt: defaultStart,
     endAt: defaultEnd,
     groupCount: Math.min(2, alphabet.length),
+    matchCountMode: TournamentMatchCountMode.PER_PLAYER,
+    matchesPerPlayer: 3,
     gamesPerGroup: 8,
     selectedIds: new Set()
   });
@@ -171,7 +185,11 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
           body: JSON.stringify({
             name: form.name.trim() || `Tournament ${leagueDayjs().format('YYYY-MM-DD')}`,
             mode: form.mode,
-            gamesPerGroup: form.gamesPerGroup,
+            matchCountMode: form.matchCountMode,
+            matchesPerPlayer:
+              form.matchCountMode === TournamentMatchCountMode.PER_PLAYER ? form.matchesPerPlayer : undefined,
+            gamesPerGroup:
+              form.matchCountMode === TournamentMatchCountMode.TOTAL_MATCHES ? form.gamesPerGroup : undefined,
             groupLabels,
             participantIds: Array.from(form.selectedIds),
             startAt: toLeagueIso(form.startAt),
@@ -201,6 +219,9 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
     const draft: DraftTournament = {
       id: tournament.id,
       status: tournament.status,
+      matchCountMode: tournament.matchCountMode,
+      matchesPerPlayer: tournament.matchesPerPlayer,
+      gamesPerGroup: tournament.gamesPerGroup,
       groups: tournament.groups.map((group) => ({
         id: group.id,
         name: group.name,
@@ -345,7 +366,7 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
             />
           </label>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           <label className="flex flex-col gap-1 text-sm">
             <span>Groups</span>
             <input
@@ -358,16 +379,50 @@ export function TournamentManager({ players, tournaments }: TournamentManagerPro
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span>Games / Group</span>
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={form.gamesPerGroup}
-              onChange={(event) => setForm((previous) => ({ ...previous, gamesPerGroup: Number(event.target.value) }))}
+            <span>Match quota mode</span>
+            <select
+              value={form.matchCountMode}
+              onChange={(event) =>
+                setForm((previous) => ({
+                  ...previous,
+                  matchCountMode: event.target.value as TournamentMatchCountMode
+                }))
+              }
               className="rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-700"
-            />
+            >
+              <option value={TournamentMatchCountMode.PER_PLAYER}>Matches per player</option>
+              <option value={TournamentMatchCountMode.TOTAL_MATCHES}>Total games per group</option>
+            </select>
           </label>
+          {form.matchCountMode === TournamentMatchCountMode.PER_PLAYER ? (
+            <label className="flex flex-col gap-1 text-sm">
+              <span>Matches / player</span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={form.matchesPerPlayer}
+                onChange={(event) =>
+                  setForm((previous) => ({ ...previous, matchesPerPlayer: Number(event.target.value) }))
+                }
+                className="rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-700"
+              />
+            </label>
+          ) : (
+            <label className="flex flex-col gap-1 text-sm">
+              <span>Total games / group</span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={form.gamesPerGroup}
+                onChange={(event) =>
+                  setForm((previous) => ({ ...previous, gamesPerGroup: Number(event.target.value) }))
+                }
+                className="rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-700"
+              />
+            </label>
+          )}
           <div className="flex flex-col gap-1 text-sm">
             <span>Participants selected</span>
             <span className="rounded border border-dashed border-slate-300 px-3 py-2 dark:border-slate-600">{selectedCount}</span>
@@ -467,6 +522,10 @@ function TournamentCard({
     TournamentStatus.COMPLETED,
     TournamentStatus.CANCELLED
   ];
+  const matchSummary =
+    tournament.matchCountMode === TournamentMatchCountMode.PER_PLAYER
+      ? `${tournament.matchesPerPlayer ?? '–'} matches / player`
+      : `${tournament.gamesPerGroup ?? 0} games / group`;
 
   return (
     <div className="space-y-4 rounded-xl border border-slate-200 p-4 text-sm dark:border-slate-700">
@@ -476,7 +535,7 @@ function TournamentCard({
           <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
             <StatusBadge status={tournament.status} />
             <span>{tournament.mode}</span>
-            <span>Games / group: {tournament.gamesPerGroup}</span>
+            <span>{matchSummary}</span>
           </div>
         </div>
         <div className="text-right text-xs text-slate-500">

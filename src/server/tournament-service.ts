@@ -4,7 +4,8 @@ import {
   ResultType,
   TournamentMatchStatus,
   TournamentMode,
-  TournamentStatus
+  TournamentStatus,
+  TournamentMatchCountMode
 } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { applyRatingsForMatch } from '@/server/rating-engine';
@@ -63,7 +64,9 @@ export interface TournamentDetailDTO {
   name: string;
   mode: TournamentMode;
   status: TournamentStatus;
-  gamesPerGroup: number;
+  matchCountMode: TournamentMatchCountMode;
+  matchesPerPlayer: number | null;
+  gamesPerGroup: number | null;
   startAt: string;
   endAt: string;
   participants: TournamentDetailParticipantDTO[];
@@ -93,6 +96,8 @@ function assertScoreValid(team1Score: number, team2Score: number, target = DEFAU
 interface CreateTournamentParams {
   name: string;
   mode: TournamentMode;
+  matchCountMode?: TournamentMatchCountMode;
+  matchesPerPlayer?: number;
   gamesPerGroup?: number;
   groupLabels: string[];
   startAt: Date;
@@ -123,13 +128,18 @@ export async function createTournament(params: CreateTournamentParams) {
   const {
     name,
     mode,
-    gamesPerGroup = 8,
+    matchCountMode = TournamentMatchCountMode.PER_PLAYER,
+    matchesPerPlayer: matchesPerPlayerInput,
+    gamesPerGroup: gamesPerGroupInput,
     groupLabels,
     startAt,
     endAt,
     createdById,
     participantIds
   } = params;
+
+  const matchesPerPlayer = matchesPerPlayerInput ?? 3;
+  const gamesPerGroup = gamesPerGroupInput ?? 8;
 
   if (participantIds.length < 2) {
     throw new Error('Tournament must include at least two participants.');
@@ -145,6 +155,12 @@ export async function createTournament(params: CreateTournamentParams) {
   }
   if (mode === TournamentMode.DOUBLES && participantIds.length < 4) {
     throw new Error('Doubles tournaments require at least four participants.');
+  }
+  if (matchCountMode === TournamentMatchCountMode.PER_PLAYER && matchesPerPlayer < 1) {
+    throw new Error('Matches per player must be at least 1.');
+  }
+  if (matchCountMode === TournamentMatchCountMode.TOTAL_MATCHES && gamesPerGroup < 1) {
+    throw new Error('Games per group must be at least 1.');
   }
 
   const users = await prisma.user.findMany({
@@ -162,16 +178,32 @@ export async function createTournament(params: CreateTournamentParams) {
   }
 
   const ratingKey = mode === TournamentMode.SINGLES ? 'singlesRating' : 'doublesRating';
-  const sorted = [...users].sort((a, b) => (b[ratingKey] ?? 1500) - (a[ratingKey] ?? 1500));
+  const sorted = [...users]
+    .map((user) => ({
+      id: user.id,
+      displayName: user.displayName,
+      rating: user[ratingKey] ?? 1500
+    }))
+    .sort((a, b) => (b.rating ?? 1500) - (a.rating ?? 1500));
   const groups = distributeIntoGroups(sorted, groupLabels);
 
   const pairings = groups.map((group) => ({
     label: group.label,
     participants: group.participants.map((p) => p.id),
-    matchups:
-      mode === TournamentMode.SINGLES
-        ? generateSinglesPairings(group.participants.map((p) => p.id), gamesPerGroup)
-        : generateDoublesPairings(group.participants.map((p) => p.id), gamesPerGroup)
+    matchups: (() => {
+      const ids = group.participants.map((p) => p.id);
+      if (mode === TournamentMode.SINGLES) {
+        const combos = (ids.length * (ids.length - 1)) / 2;
+        const limit = matchCountMode === TournamentMatchCountMode.PER_PLAYER
+          ? Math.min(combos, Math.floor((matchesPerPlayer * ids.length) / 2))
+          : Math.min(combos, gamesPerGroup);
+        return generateSinglesPairings(ids, limit);
+      }
+      const target = matchCountMode === TournamentMatchCountMode.PER_PLAYER
+        ? Math.max(0, Math.ceil((matchesPerPlayer * ids.length) / 4))
+        : gamesPerGroup;
+      return generateDoublesPairings(ids, target);
+    })()
   }));
 
   const tournament = await prisma.$transaction(async (tx) => {
@@ -179,7 +211,9 @@ export async function createTournament(params: CreateTournamentParams) {
       data: {
         name,
         mode,
-        gamesPerGroup,
+        matchCountMode,
+        matchesPerPlayer: matchCountMode === TournamentMatchCountMode.PER_PLAYER ? matchesPerPlayer : null,
+        gamesPerGroup: matchCountMode === TournamentMatchCountMode.TOTAL_MATCHES ? gamesPerGroup : null,
         startAt,
         endAt,
         createdById
@@ -433,6 +467,8 @@ export async function getTournamentDetail(id: string): Promise<TournamentDetailD
     name: tournament.name,
     mode: tournament.mode,
     status: tournament.status,
+    matchCountMode: tournament.matchCountMode,
+    matchesPerPlayer: tournament.matchesPerPlayer,
     gamesPerGroup: tournament.gamesPerGroup,
     startAt: tournament.startAt.toISOString(),
     endAt: tournament.endAt.toISOString(),
@@ -678,18 +714,25 @@ export async function reportTournamentMatch({
 
 
 export function distributeIntoGroups(
-  participants: Array<{ id: string; displayName: string }>,
+  participants: Array<{ id: string; displayName: string; rating: number }>,
   labels: string[]
 ) {
-  const groups = labels.map((label) => ({ label, participants: [] as Array<{ id: string; displayName: string }> }));
-  const count = groups.length;
-  participants.forEach((participant, index) => {
-    const cycle = Math.floor(index / count);
-    const offset = index % count;
-    const groupIndex = cycle % 2 === 0 ? offset : count - 1 - offset;
-    groups[groupIndex].participants.push(participant);
+  const groupCount = labels.length;
+  const total = participants.length;
+  const baseSize = Math.floor(total / groupCount);
+  let remainder = total % groupCount;
+  let cursor = 0;
+
+  return labels.map((label, index) => {
+    const size = baseSize + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder -= 1;
+    const slice = participants.slice(cursor, cursor + size);
+    cursor += size;
+    return {
+      label,
+      participants: slice
+    };
   });
-  return groups;
 }
 
 export function generateSinglesPairings(participantIds: string[], limit: number) {

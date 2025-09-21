@@ -53,6 +53,11 @@ function Section({ title, tournaments, empty }: { title: string; tournaments: an
                   <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
                     <StatusBadge status={tournament.status} />
                     <span>{tournament.mode}</span>
+                    <span>
+                      {tournament.matchCountMode === 'PER_PLAYER'
+                        ? `${tournament.matchesPerPlayer ?? '–'} match${(tournament.matchesPerPlayer ?? 0) === 1 ? '' : 'es'} / player`
+                        : `${tournament.gamesPerGroup ?? '–'} games / group`}
+                    </span>
                   </div>
                 </div>
                 <div className="text-right text-xs text-slate-500">

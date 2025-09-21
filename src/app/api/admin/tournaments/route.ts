@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { TournamentMode } from '@prisma/client';
+import { TournamentMatchCountMode, TournamentMode } from '@prisma/client';
 import { auth } from '@/server/auth';
 import { createTournament, listTournaments } from '@/server/tournament-service';
 
@@ -9,7 +9,9 @@ const userIdSchema = z.string().min(1);
 const createSchema = z.object({
   name: z.string().min(1),
   mode: z.nativeEnum(TournamentMode),
-  gamesPerGroup: z.number().int().min(1).max(50).optional(),
+  matchCountMode: z.nativeEnum(TournamentMatchCountMode).optional(),
+  matchesPerPlayer: z.number().int().min(1).max(20).optional(),
+  gamesPerGroup: z.number().int().min(1).max(200).optional(),
   groupLabels: z.array(z.string().min(1)).min(1),
   participantIds: z.array(userIdSchema).min(2),
   startAt: z.string().datetime(),
@@ -42,10 +44,16 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
+  const matchCountMode = data.matchCountMode ?? TournamentMatchCountMode.PER_PLAYER;
+  const matchesPerPlayer = data.matchesPerPlayer ?? 3;
+  const gamesPerGroup = data.gamesPerGroup ?? 8;
+
   const tournament = await createTournament({
     name: data.name,
     mode: data.mode,
-    gamesPerGroup: data.gamesPerGroup,
+    matchCountMode,
+    matchesPerPlayer,
+    gamesPerGroup,
     groupLabels: data.groupLabels,
     participantIds: data.participantIds,
     startAt: new Date(data.startAt),

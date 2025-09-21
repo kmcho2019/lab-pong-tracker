@@ -60,7 +60,7 @@ Refer back to `README.md` for setup/deployment instructions and to `AGENTS.md` f
 
 ## Tournament Management
 
-- The admin console includes a tournament manager that seeds groups serpentine by rating and builds single-game round-robin schedules (randomised doubles pairings respect per-player limits).
+- The admin console includes a tournament manager that sorts entrants by overall rating, segments them into contiguous groups to keep skill ranges tight, and builds round-robin schedules. Admins can choose a per-player match quota (default) or a total-games target per group; doubles fixtures respect the per-player limits when that mode is selected.
 - Admins can rename groups, tweak table assignments, reassign players, and edit match pairings/schedules before saving; validation ensures players stay within one group and teams match the tournament mode.
 - Status controls—Scheduled, Active, Completed, Cancelled—drive reporting permissions. Completed events archive automatically when every matchup has a recorded result.
 - Reporting a tournament matchup runs through `POST /api/tournaments/:id/matches/:matchId/report`, creates a confirmed `Match` with participants, writes an audit entry, advances ratings, and closes the pairing. Admins and participants on the matchup can submit results while the tournament is Active.

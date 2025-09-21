@@ -129,7 +129,9 @@ export default async function AdminPage() {
           name: tournament.name,
           mode: tournament.mode,
           status: tournament.status,
-          gamesPerGroup: tournament.gamesPerGroup,
+          matchCountMode: tournament.matchCountMode,
+          matchesPerPlayer: tournament.matchesPerPlayer ?? null,
+          gamesPerGroup: tournament.gamesPerGroup ?? null,
           startAt: tournament.startAt.toISOString(),
           endAt: tournament.endAt.toISOString(),
           participants: tournament.participants.map((participant) => ({

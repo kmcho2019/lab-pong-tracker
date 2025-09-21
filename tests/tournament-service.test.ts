@@ -27,21 +27,26 @@ function maxDifference(values: Iterable<number>) {
 }
 
 describe('distributeIntoGroups', () => {
-  it('uses serpentine distribution by rating order', () => {
+  it('segments sorted participants into contiguous rating bands', () => {
     const participants = [
-      { id: 'p1', displayName: 'One' },
-      { id: 'p2', displayName: 'Two' },
-      { id: 'p3', displayName: 'Three' },
-      { id: 'p4', displayName: 'Four' },
-      { id: 'p5', displayName: 'Five' },
-      { id: 'p6', displayName: 'Six' },
-      { id: 'p7', displayName: 'Seven' }
+      { id: 'p1', displayName: 'One', rating: 2100 },
+      { id: 'p2', displayName: 'Two', rating: 2050 },
+      { id: 'p3', displayName: 'Three', rating: 2000 },
+      { id: 'p4', displayName: 'Four', rating: 1950 },
+      { id: 'p5', displayName: 'Five', rating: 1900 },
+      { id: 'p6', displayName: 'Six', rating: 1850 },
+      { id: 'p7', displayName: 'Seven', rating: 1800 }
     ];
     const groups = distributeIntoGroups(participants, ['A', 'B', 'C']);
     expect(groups).toHaveLength(3);
-    expect(groups[0].participants.map((p) => p.id)).toEqual(['p1', 'p6', 'p7']);
-    expect(groups[1].participants.map((p) => p.id)).toEqual(['p2', 'p5']);
-    expect(groups[2].participants.map((p) => p.id)).toEqual(['p3', 'p4']);
+    expect(groups[0].participants.map((p) => p.id)).toEqual(['p1', 'p2', 'p3']);
+    expect(groups[1].participants.map((p) => p.id)).toEqual(['p4', 'p5']);
+    expect(groups[2].participants.map((p) => p.id)).toEqual(['p6', 'p7']);
+    const ranges = groups.map((group) => {
+      const ratings = group.participants.map((p) => p.rating);
+      return Math.max(...ratings) - Math.min(...ratings);
+    });
+    expect(Math.max(...ranges)).toBeLessThanOrEqual(200);
   });
 });
 
@@ -72,7 +77,8 @@ describe('generateSinglesPairings', () => {
   it('allocates everyone evenly with uneven group sizes (5/4 split, 8 matches each)', () => {
     const ninePlayers = Array.from({ length: 9 }, (_, index) => ({
       id: `p${index + 1}`,
-      displayName: `Player ${index + 1}`
+      displayName: `Player ${index + 1}`,
+      rating: 2400 - index * 50
     }));
     const groups = distributeIntoGroups(ninePlayers, ['A', 'B']);
 
@@ -132,20 +138,16 @@ describe('end-to-end group allocation heuristics', () => {
       rating: 2400 - index * 100
     }));
 
-    const groups = distributeIntoGroups(
-      participants.map(({ id, displayName }) => ({ id, displayName })),
-      ['A', 'B', 'C']
-    );
+    const groups = distributeIntoGroups(participants, ['A', 'B', 'C']);
 
     const ratingsById = new Map(participants.map((p) => [p.id, p.rating]));
 
-    const averages = groups.map((group) => {
+    const ranges = groups.map((group) => {
       const ratings = group.participants.map((participant) => ratingsById.get(participant.id) ?? 0);
-      const total = ratings.reduce((sum, value) => sum + value, 0);
-      return total / ratings.length;
+      return Math.max(...ratings) - Math.min(...ratings);
     });
 
-    expect(maxDifference(averages)).toBeLessThanOrEqual(220);
+    ranges.forEach((spread) => expect(spread).toBeLessThanOrEqual(400));
     const sizes = groups.map((group) => group.participants.length);
     expect(maxDifference(sizes)).toBeLessThanOrEqual(1);
   });
