@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { TournamentMatchStatus, TournamentMode } from '@prisma/client';
 import {
   distributeIntoGroups,
+  generateCompetitiveDoublesSchedule,
+  generateCompetitiveSinglesSchedule,
+  calculatePlacementsForGroup,
   generateSinglesPairings,
   generateDoublesPairings
 } from '@/server/tournament-service';
@@ -55,6 +59,7 @@ describe('generateSinglesPairings', () => {
     const ids = ['a', 'b', 'c', 'd'];
     const pairings = generateSinglesPairings(ids, 3);
     expect(pairings).toHaveLength(3);
+    expect(pairings.every((match) => match.iteration === 1)).toBe(true);
     const seen = new Set(pairings.map((match) => `${match.team1[0]}-${match.team2[0]}`));
     expect(seen.size).toBe(3);
     pairings.forEach((match) => {
@@ -68,6 +73,7 @@ describe('generateSinglesPairings', () => {
     const ids = ['p1', 'p2', 'p3', 'p4', 'p5'];
     const pairings = generateSinglesPairings(ids, 8); // 8 < C(5,2)=10
     expect(pairings).toHaveLength(8);
+    expect(pairings.every((match) => match.iteration === 1)).toBe(true);
 
     const counts = matchCounts(pairings);
     expect(counts.size).toBe(ids.length);
@@ -90,6 +96,7 @@ describe('generateSinglesPairings', () => {
       const possiblePairs = (ids.length * (ids.length - 1)) / 2;
       expect(pairings.length).toBeLessThanOrEqual(8);
       expect(pairings.length).toBeLessThanOrEqual(possiblePairs);
+      expect(pairings.every((match) => match.iteration === 1)).toBe(true);
       expect(maxDifference(matchCounts(pairings).values())).toBeLessThanOrEqual(1);
     });
   });
@@ -112,6 +119,7 @@ describe('generateDoublesPairings', () => {
 
     const pairings = generateDoublesPairings(ids, 3);
     expect(pairings.length).toBeGreaterThan(0);
+    expect(pairings.every((match) => match.iteration === 1)).toBe(true);
     pairings.forEach((match) => {
       expect(match.team1).toHaveLength(2);
       expect(match.team2).toHaveLength(2);
@@ -127,6 +135,138 @@ describe('generateDoublesPairings', () => {
     counts.forEach((value) => {
       expect(value).toBeLessThanOrEqual(maxPerPlayer);
     });
+  });
+});
+
+describe('generateCompetitiveSinglesSchedule', () => {
+  it('creates full round robin iterations with alternating home order', () => {
+    const ids = ['p1', 'p2', 'p3', 'p4'];
+    const matches = generateCompetitiveSinglesSchedule(ids, 2);
+    const expectedPerIteration = (ids.length * (ids.length - 1)) / 2;
+    expect(matches).toHaveLength(expectedPerIteration * 2);
+
+    const counts = matchCounts(matches);
+    counts.forEach((value) => {
+      expect(value).toBe((ids.length - 1) * 2);
+    });
+
+    const iterationOne = matches.filter((match) => match.iteration === 1);
+    const iterationTwo = matches.filter((match) => match.iteration === 2);
+    const canonical = (match: { team1: string[]; team2: string[] }) =>
+      [match.team1[0], match.team2[0]].sort().join('-');
+    expect(new Set(iterationOne.map(canonical)).size).toBe(expectedPerIteration);
+    expect(new Set(iterationTwo.map(canonical)).size).toBe(expectedPerIteration);
+
+    iterationOne.forEach((match) => {
+      const reversed = iterationTwo.find(
+        (candidate) =>
+          candidate.team1[0] === match.team2[0] && candidate.team2[0] === match.team1[0]
+      );
+      expect(reversed).toBeDefined();
+    });
+  });
+});
+
+describe('generateCompetitiveDoublesSchedule', () => {
+  it('locks balanced teams and schedules round robin play', () => {
+    const participants = [
+      { id: 'p1', rating: 2100 },
+      { id: 'p2', rating: 2050 },
+      { id: 'p3', rating: 1980 },
+      { id: 'p4', rating: 1960 },
+      { id: 'p5', rating: 1890 },
+      { id: 'p6', rating: 1820 }
+    ];
+    const matches = generateCompetitiveDoublesSchedule(participants, 1);
+    expect(matches).toHaveLength(3);
+
+    const teams = new Set<string>();
+    matches.forEach((match) => {
+      teams.add(match.team1.slice().sort().join('-'));
+      teams.add(match.team2.slice().sort().join('-'));
+      match.team1.concat(match.team2).forEach((id) => expect(id).toMatch(/^p/));
+    });
+
+    expect(teams).toEqual(
+      new Set(['p1-p6', 'p2-p5', 'p3-p4'])
+    );
+  });
+
+  it('throws when participants list is not even', () => {
+    expect(() =>
+      generateCompetitiveDoublesSchedule(
+        [
+          { id: 'p1', rating: 2100 },
+          { id: 'p2', rating: 2050 },
+          { id: 'p3', rating: 2000 },
+          { id: 'p4', rating: 1980 },
+          { id: 'p5', rating: 1930 }
+        ],
+        1
+      )
+    ).toThrow('Competitive doubles scheduling requires an even number of participants.');
+  });
+});
+
+describe('calculatePlacementsForGroup', () => {
+  it('ranks singles players by wins then point differential', () => {
+    const placements = calculatePlacementsForGroup(
+      TournamentMode.SINGLES,
+      [{ userId: 'a' }, { userId: 'b' }, { userId: 'c' }],
+      [
+        {
+          team1Ids: ['a'],
+          team2Ids: ['b'],
+          status: TournamentMatchStatus.PLAYED,
+          resultMatch: { team1Score: 11, team2Score: 8 }
+        },
+        {
+          team1Ids: ['a'],
+          team2Ids: ['c'],
+          status: TournamentMatchStatus.PLAYED,
+          resultMatch: { team1Score: 9, team2Score: 11 }
+        },
+        {
+          team1Ids: ['b'],
+          team2Ids: ['c'],
+          status: TournamentMatchStatus.PLAYED,
+          resultMatch: { team1Score: 11, team2Score: 7 }
+        }
+      ]
+    );
+
+    const byId = new Map(placements.map((placement) => [placement.teamIds.join(), placement]));
+    expect(byId.get('a')?.wins).toBe(1);
+    expect(byId.get('a')?.losses).toBe(1);
+    expect(byId.get('a')?.rank).toBe(1);
+    expect(byId.get('b')?.rank).toBe(2);
+    expect(byId.get('c')?.rank).toBe(3);
+  });
+
+  it('keeps doubles team standings in sync with played matches', () => {
+    const placements = calculatePlacementsForGroup(
+      TournamentMode.DOUBLES,
+      [],
+      [
+        {
+          team1Ids: ['a', 'd'],
+          team2Ids: ['b', 'c'],
+          status: TournamentMatchStatus.PLAYED,
+          resultMatch: { team1Score: 11, team2Score: 9 }
+        },
+        {
+          team1Ids: ['a', 'd'],
+          team2Ids: ['e', 'f'],
+          status: TournamentMatchStatus.SCHEDULED,
+          resultMatch: null
+        }
+      ]
+    );
+
+    const first = placements.find((placement) => placement.teamIds.join('-') === 'a-d');
+    expect(first?.wins).toBe(1);
+    expect(first?.matchesPlayed).toBe(1);
+    expect(first?.rank).toBe(1);
   });
 });
 
@@ -163,7 +303,7 @@ describe('end-to-end group allocation heuristics', () => {
 
   it('handles minimal groups gracefully', () => {
     const pairings = generateSinglesPairings(['x', 'y'], 5);
-    expect(pairings).toEqual([{ team1: ['x'], team2: ['y'] }]);
+    expect(pairings).toEqual([{ team1: ['x'], team2: ['y'], iteration: 1 }]);
 
     const empty = generateSinglesPairings(['solo'], 3);
     expect(empty).toEqual([]);

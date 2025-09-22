@@ -2,10 +2,11 @@ import {
   MatchStatus,
   MatchType,
   ResultType,
+  TournamentFormat,
+  TournamentMatchCountMode,
   TournamentMatchStatus,
   TournamentMode,
-  TournamentStatus,
-  TournamentMatchCountMode
+  TournamentStatus
 } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { applyRatingsForMatch } from '@/server/rating-engine';
@@ -29,6 +30,7 @@ export interface TournamentDetailMatchDTO {
   id: string;
   team1Ids: string[];
   team2Ids: string[];
+  iteration: number;
   status: TournamentMatchStatus;
   scheduledAt: string | null;
   resultMatch: {
@@ -57,16 +59,30 @@ export interface TournamentDetailGroupDTO {
     };
   }>;
   matchups: TournamentDetailMatchDTO[];
+  placements: TournamentPlacementDTO[];
+}
+
+export interface TournamentPlacementDTO {
+  teamIds: string[];
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDifferential: number;
+  rank: number;
 }
 
 export interface TournamentDetailDTO {
   id: string;
   name: string;
   mode: TournamentMode;
+  format: TournamentFormat;
   status: TournamentStatus;
   matchCountMode: TournamentMatchCountMode;
   matchesPerPlayer: number | null;
   gamesPerGroup: number | null;
+  roundRobinIterations: number;
   startAt: string;
   endAt: string;
   participants: TournamentDetailParticipantDTO[];
@@ -75,6 +91,12 @@ export interface TournamentDetailDTO {
 
 const DEFAULT_TARGET_POINTS = 11;
 const DEFAULT_WIN_BY_MARGIN = 2;
+
+export type ScheduledMatchDefinition = {
+  team1: string[];
+  team2: string[];
+  iteration: number;
+};
 
 function assertScoreValid(team1Score: number, team2Score: number, target = DEFAULT_TARGET_POINTS, winBy = DEFAULT_WIN_BY_MARGIN) {
   if (!Number.isInteger(team1Score) || !Number.isInteger(team2Score) || team1Score < 0 || team2Score < 0) {
@@ -96,6 +118,7 @@ function assertScoreValid(team1Score: number, team2Score: number, target = DEFAU
 interface CreateTournamentParams {
   name: string;
   mode: TournamentMode;
+  format?: TournamentFormat;
   matchCountMode?: TournamentMatchCountMode;
   matchesPerPlayer?: number;
   gamesPerGroup?: number;
@@ -104,6 +127,7 @@ interface CreateTournamentParams {
   endAt: Date;
   createdById: string;
   participantIds: string[];
+  roundRobinIterations?: number;
 }
 
 interface ManualUpdatePayload {
@@ -128,6 +152,7 @@ export async function createTournament(params: CreateTournamentParams) {
   const {
     name,
     mode,
+    format = TournamentFormat.STANDARD,
     matchCountMode = TournamentMatchCountMode.PER_PLAYER,
     matchesPerPlayer: matchesPerPlayerInput,
     gamesPerGroup: gamesPerGroupInput,
@@ -135,11 +160,13 @@ export async function createTournament(params: CreateTournamentParams) {
     startAt,
     endAt,
     createdById,
-    participantIds
+    participantIds,
+    roundRobinIterations: roundRobinIterationsInput
   } = params;
 
   const matchesPerPlayer = matchesPerPlayerInput ?? 3;
   const gamesPerGroup = gamesPerGroupInput ?? 8;
+  const roundRobinIterations = Math.max(1, roundRobinIterationsInput ?? 1);
 
   if (participantIds.length < 2) {
     throw new Error('Tournament must include at least two participants.');
@@ -162,6 +189,13 @@ export async function createTournament(params: CreateTournamentParams) {
   if (matchCountMode === TournamentMatchCountMode.TOTAL_MATCHES && gamesPerGroup < 1) {
     throw new Error('Games per group must be at least 1.');
   }
+  const isCompetitiveMonthly = format === TournamentFormat.COMPETITIVE_MONTHLY;
+  if (isCompetitiveMonthly && matchCountMode !== TournamentMatchCountMode.PER_PLAYER) {
+    throw new Error('Competitive monthly tournaments always allocate matches per player.');
+  }
+  if (isCompetitiveMonthly && roundRobinIterations > 5) {
+    throw new Error('Round robin iterations are limited to five per tournament.');
+  }
 
   const users = await prisma.user.findMany({
     where: { id: { in: participantIds } },
@@ -178,42 +212,84 @@ export async function createTournament(params: CreateTournamentParams) {
   }
 
   const ratingKey = mode === TournamentMode.SINGLES ? 'singlesRating' : 'doublesRating';
-  const sorted = [...users]
-    .map((user) => ({
-      id: user.id,
-      displayName: user.displayName,
-      rating: user[ratingKey] ?? 1500
-    }))
-    .sort((a, b) => (b.rating ?? 1500) - (a.rating ?? 1500));
-  const groups = distributeIntoGroups(sorted, groupLabels);
-
-  const pairings = groups.map((group) => ({
-    label: group.label,
-    participants: group.participants.map((p) => p.id),
-    matchups: (() => {
-      const ids = group.participants.map((p) => p.id);
-      if (mode === TournamentMode.SINGLES) {
-        const combos = (ids.length * (ids.length - 1)) / 2;
-        const limit = matchCountMode === TournamentMatchCountMode.PER_PLAYER
-          ? Math.min(combos, Math.floor((matchesPerPlayer * ids.length) / 2))
-          : Math.min(combos, gamesPerGroup);
-        return generateSinglesPairings(ids, limit);
-      }
-      const target = matchCountMode === TournamentMatchCountMode.PER_PLAYER
-        ? Math.max(0, Math.ceil((matchesPerPlayer * ids.length) / 4))
-        : gamesPerGroup;
-      return generateDoublesPairings(ids, target);
-    })()
+  const preparedParticipants = users.map((user) => ({
+    id: user.id,
+    displayName: user.displayName,
+    rating: user[ratingKey] ?? 1500
   }));
+
+  const sortedParticipants = [...preparedParticipants].sort((a, b) => (b.rating ?? 1500) - (a.rating ?? 1500));
+  const groups = distributeIntoGroups(sortedParticipants, groupLabels);
+
+  const pairings = groups.map((group) => {
+    const participantIds = group.participants.map((participant) => participant.id);
+
+    if (isCompetitiveMonthly) {
+      if (mode === TournamentMode.SINGLES) {
+        if (participantIds.length < 2) {
+          throw new Error('Competitive singles groups require at least two participants.');
+        }
+        const schedule = generateCompetitiveSinglesSchedule(participantIds, roundRobinIterations);
+        return {
+          label: group.label,
+          participants: participantIds,
+          matchups: schedule
+        };
+      }
+
+      if (participantIds.length < 4 || participantIds.length % 2 !== 0) {
+        throw new Error('Competitive doubles groups require an even number of participants (minimum four).');
+      }
+
+      const schedule = generateCompetitiveDoublesSchedule(group.participants, roundRobinIterations);
+      return {
+        label: group.label,
+        participants: participantIds,
+        matchups: schedule
+      };
+    }
+
+    if (mode === TournamentMode.SINGLES) {
+      const combos = (participantIds.length * (participantIds.length - 1)) / 2;
+      const limit = matchCountMode === TournamentMatchCountMode.PER_PLAYER
+        ? Math.min(combos, Math.floor((matchesPerPlayer * participantIds.length) / 2))
+        : Math.min(combos, gamesPerGroup);
+      const schedule = generateSinglesPairings(participantIds, limit);
+      return {
+        label: group.label,
+        participants: participantIds,
+        matchups: schedule
+      };
+    }
+
+    const target = matchCountMode === TournamentMatchCountMode.PER_PLAYER
+      ? Math.max(0, Math.ceil((matchesPerPlayer * participantIds.length) / 4))
+      : gamesPerGroup;
+    const schedule = generateDoublesPairings(participantIds, target);
+    return {
+      label: group.label,
+      participants: participantIds,
+      matchups: schedule
+    };
+  });
+
+  const storedMatchesPerPlayer = !isCompetitiveMonthly && matchCountMode === TournamentMatchCountMode.PER_PLAYER
+    ? matchesPerPlayer
+    : null;
+  const storedGamesPerGroup = !isCompetitiveMonthly && matchCountMode === TournamentMatchCountMode.TOTAL_MATCHES
+    ? gamesPerGroup
+    : null;
 
   const tournament = await prisma.$transaction(async (tx) => {
     const created = await tx.tournament.create({
       data: {
         name,
         mode,
+        format,
         matchCountMode,
-        matchesPerPlayer: matchCountMode === TournamentMatchCountMode.PER_PLAYER ? matchesPerPlayer : null,
-        gamesPerGroup: matchCountMode === TournamentMatchCountMode.TOTAL_MATCHES ? gamesPerGroup : null,
+        matchesPerPlayer: storedMatchesPerPlayer,
+        gamesPerGroup: storedGamesPerGroup,
+        roundRobinIterations,
         startAt,
         endAt,
         createdById
@@ -254,6 +330,7 @@ export async function createTournament(params: CreateTournamentParams) {
         return group.matchups.map((match) => ({
           tournamentId: created.id,
           groupId,
+          iteration: match.iteration ?? 1,
           team1Ids: match.team1,
           team2Ids: match.team2,
           scheduledAt: startAt,
@@ -462,14 +539,37 @@ export async function getTournamentDetail(id: string): Promise<TournamentDetailD
     return null;
   }
 
+  const placementsByGroup = new Map<string, TournamentPlacementDTO[]>();
+
+  tournament.groups.forEach((group) => {
+    const placements = calculatePlacementsForGroup(
+      tournament.mode,
+      group.participants.map((participant) => ({ userId: participant.userId })),
+      group.matchups.map((matchup) => ({
+        team1Ids: matchup.team1Ids,
+        team2Ids: matchup.team2Ids,
+        status: matchup.status,
+        resultMatch: matchup.resultMatch
+          ? {
+              team1Score: matchup.resultMatch.team1Score,
+              team2Score: matchup.resultMatch.team2Score
+            }
+          : null
+      }))
+    );
+    placementsByGroup.set(group.id, placements);
+  });
+
   return {
     id: tournament.id,
     name: tournament.name,
     mode: tournament.mode,
+    format: tournament.format,
     status: tournament.status,
     matchCountMode: tournament.matchCountMode,
     matchesPerPlayer: tournament.matchesPerPlayer,
     gamesPerGroup: tournament.gamesPerGroup,
+    roundRobinIterations: tournament.roundRobinIterations,
     startAt: tournament.startAt.toISOString(),
     endAt: tournament.endAt.toISOString(),
     participants: tournament.participants.map((participant) => ({
@@ -506,6 +606,7 @@ export async function getTournamentDetail(id: string): Promise<TournamentDetailD
         id: matchup.id,
         team1Ids: matchup.team1Ids,
         team2Ids: matchup.team2Ids,
+        iteration: matchup.iteration ?? 1,
         status: matchup.status,
         scheduledAt: matchup.scheduledAt ? matchup.scheduledAt.toISOString() : null,
         resultMatch: matchup.resultMatch
@@ -520,7 +621,8 @@ export async function getTournamentDetail(id: string): Promise<TournamentDetailD
               note: matchup.resultMatch.note
             }
           : null
-      }))
+      })),
+      placements: placementsByGroup.get(group.id) ?? []
     }))
   };
 }
@@ -735,14 +837,199 @@ export function distributeIntoGroups(
   });
 }
 
-export function generateSinglesPairings(participantIds: string[], limit: number) {
+export function generateCompetitiveSinglesSchedule(participantIds: string[], iterations: number) {
+  const ids = participantIds.filter(Boolean);
+  if (ids.length < 2 || iterations < 1) {
+    return [] as ScheduledMatchDefinition[];
+  }
+
+  const rounds = roundRobinRounds(ids);
+  const matches: ScheduledMatchDefinition[] = [];
+
+  for (let iteration = 1; iteration <= iterations; iteration += 1) {
+    const swapOrder = iteration % 2 === 0;
+    for (const round of rounds) {
+      for (const [home, away] of round) {
+        const team1 = swapOrder ? [away] : [home];
+        const team2 = swapOrder ? [home] : [away];
+        matches.push({ team1, team2, iteration });
+      }
+    }
+  }
+
+  return matches;
+}
+
+export function generateCompetitiveDoublesSchedule(
+  participants: Array<{ id: string; rating: number }>,
+  iterations: number
+) {
+  const list = participants.filter((participant) => Boolean(participant.id));
+  if (list.length < 4 || iterations < 1) {
+    return [] as ScheduledMatchDefinition[];
+  }
+  if (list.length % 2 !== 0) {
+    throw new Error('Competitive doubles scheduling requires an even number of participants.');
+  }
+
+  const sorted = [...list].sort((a, b) => (b.rating ?? 1500) - (a.rating ?? 1500));
+  const teamCount = sorted.length / 2;
+  const teams: string[][] = [];
+
+  for (let index = 0; index < teamCount; index += 1) {
+    const high = sorted[index];
+    const low = sorted[sorted.length - 1 - index];
+    teams.push([high.id, low.id]);
+  }
+
+  const labels = teams.map((_, index) => `T${index}`);
+  const labelIndex = new Map(labels.map((label, index) => [label, index]));
+  const rounds = roundRobinRounds(labels);
+  const matches: ScheduledMatchDefinition[] = [];
+
+  for (let iteration = 1; iteration <= iterations; iteration += 1) {
+    const swapOrder = iteration % 2 === 0;
+    for (const round of rounds) {
+      for (const [homeLabel, awayLabel] of round) {
+        if (homeLabel === 'BYE' || awayLabel === 'BYE') continue;
+        const homeIndex = labelIndex.get(homeLabel);
+        const awayIndex = labelIndex.get(awayLabel);
+        if (homeIndex === undefined || awayIndex === undefined) continue;
+        const homeTeam = teams[homeIndex];
+        const awayTeam = teams[awayIndex];
+        const team1 = swapOrder ? [...awayTeam] : [...homeTeam];
+        const team2 = swapOrder ? [...homeTeam] : [...awayTeam];
+        matches.push({ team1, team2, iteration });
+      }
+    }
+  }
+
+  return matches;
+}
+
+function canonicalTeamKey(ids: string[]) {
+  return [...ids].sort().join('|');
+}
+
+interface PlacementAccumulator {
+  teamIds: string[];
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  pointsFor: number;
+  pointsAgainst: number;
+}
+
+export function calculatePlacementsForGroup(
+  mode: TournamentMode,
+  participants: Array<{ userId: string }>,
+  matchups: Array<{
+    team1Ids: string[];
+    team2Ids: string[];
+    status: TournamentMatchStatus;
+    resultMatch: { team1Score: number; team2Score: number } | null;
+  }>
+): TournamentPlacementDTO[] {
+  const stats = new Map<string, PlacementAccumulator>();
+
+  const ensure = (ids: string[]) => {
+    const key = canonicalTeamKey(ids);
+    if (!stats.has(key)) {
+      stats.set(key, {
+        teamIds: [...ids].sort(),
+        wins: 0,
+        losses: 0,
+        matchesPlayed: 0,
+        pointsFor: 0,
+        pointsAgainst: 0
+      });
+    }
+    return stats.get(key)!;
+  };
+
+  if (mode === TournamentMode.SINGLES) {
+    participants.forEach((participant) => ensure([participant.userId]));
+  }
+
+  matchups.forEach((match) => {
+    ensure(match.team1Ids);
+    ensure(match.team2Ids);
+    if (match.status !== TournamentMatchStatus.PLAYED || !match.resultMatch) {
+      return;
+    }
+    const team1 = ensure(match.team1Ids);
+    const team2 = ensure(match.team2Ids);
+    const { team1Score, team2Score } = match.resultMatch;
+
+    team1.matchesPlayed += 1;
+    team2.matchesPlayed += 1;
+    team1.pointsFor += team1Score;
+    team1.pointsAgainst += team2Score;
+    team2.pointsFor += team2Score;
+    team2.pointsAgainst += team1Score;
+
+    if (team1Score > team2Score) {
+      team1.wins += 1;
+      team2.losses += 1;
+    } else if (team2Score > team1Score) {
+      team2.wins += 1;
+      team1.losses += 1;
+    }
+  });
+
+  const placements = Array.from(stats.values()).map((entry) => ({
+    teamIds: entry.teamIds,
+    wins: entry.wins,
+    losses: entry.losses,
+    matchesPlayed: entry.matchesPlayed,
+    pointsFor: entry.pointsFor,
+    pointsAgainst: entry.pointsAgainst,
+    pointDifferential: entry.pointsFor - entry.pointsAgainst,
+    rank: 0
+  }));
+
+  placements.sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    const diff = b.pointDifferential - a.pointDifferential;
+    if (diff !== 0) return diff;
+    if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
+    return a.teamIds.join('|').localeCompare(b.teamIds.join('|'));
+  });
+
+  let currentRank = 0;
+  let previousSignature: { wins: number; diff: number; points: number } | null = null;
+
+  placements.forEach((placement, index) => {
+    const signature = {
+      wins: placement.wins,
+      diff: placement.pointDifferential,
+      points: placement.pointsFor
+    };
+    if (
+      previousSignature &&
+      previousSignature.wins === signature.wins &&
+      previousSignature.diff === signature.diff &&
+      previousSignature.points === signature.points
+    ) {
+      placement.rank = currentRank;
+    } else {
+      currentRank = index + 1;
+      placement.rank = currentRank;
+      previousSignature = signature;
+    }
+  });
+
+  return placements;
+}
+
+export function generateSinglesPairings(participantIds: string[], limit: number): ScheduledMatchDefinition[] {
   if (participantIds.length < 2 || limit <= 0) {
-    return [] as Array<{ team1: string[]; team2: string[] }>;
+    return [] as ScheduledMatchDefinition[];
   }
 
   const rounds = roundRobinRounds(participantIds);
   const counts = Object.fromEntries(participantIds.map((id) => [id, 0])) as Record<string, number>;
-  const pairs: Array<{ team1: string[]; team2: string[] }> = [];
+  const pairs: ScheduledMatchDefinition[] = [];
   const maxMatches = Math.min(limit, rounds.reduce((acc, round) => acc + round.length, 0));
 
   for (const round of rounds) {
@@ -753,7 +1040,7 @@ export function generateSinglesPairings(participantIds: string[], limit: number)
 
     if (round.length <= remainingCapacity) {
       for (const [home, away] of round) {
-        pairs.push({ team1: [home], team2: [away] });
+        pairs.push({ team1: [home], team2: [away], iteration: 1 });
         counts[home] = (counts[home] ?? 0) + 1;
         counts[away] = (counts[away] ?? 0) + 1;
       }
@@ -777,7 +1064,7 @@ export function generateSinglesPairings(participantIds: string[], limit: number)
       const selected = available.shift();
       if (!selected) break;
       const [home, away] = selected;
-      pairs.push({ team1: [home], team2: [away] });
+      pairs.push({ team1: [home], team2: [away], iteration: 1 });
       counts[home] = (counts[home] ?? 0) + 1;
       counts[away] = (counts[away] ?? 0) + 1;
     }
@@ -820,12 +1107,12 @@ function roundRobinRounds(players: string[]) {
   return rounds;
 }
 
-export function generateDoublesPairings(participantIds: string[], limit: number) {
+export function generateDoublesPairings(participantIds: string[], limit: number): ScheduledMatchDefinition[] {
   const ids = participantIds.filter(Boolean);
-  if (ids.length < 4 || limit <= 0) return [] as Array<{ team1: string[]; team2: string[] }>;
+  if (ids.length < 4 || limit <= 0) return [] as ScheduledMatchDefinition[];
   const counts = Object.fromEntries(ids.map((id) => [id, 0])) as Record<string, number>;
   const maxPerPlayer = Math.max(1, Math.ceil((limit * 4) / ids.length));
-  const matchups: Array<{ team1: string[]; team2: string[] }> = [];
+  const matchups: ScheduledMatchDefinition[] = [];
   const seen = new Set<string>();
   let attempts = 0;
 
@@ -847,7 +1134,7 @@ export function generateDoublesPairings(participantIds: string[], limit: number)
       counts[team1[1]] += 1;
       counts[team2[0]] += 1;
       counts[team2[1]] += 1;
-      matchups.push({ team1, team2 });
+      matchups.push({ team1, team2, iteration: 1 });
     }
   }
 

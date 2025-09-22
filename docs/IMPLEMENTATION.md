@@ -60,8 +60,9 @@ Refer back to `README.md` for setup/deployment instructions and to `AGENTS.md` f
 
 ## Tournament Management
 
-- The admin console includes a tournament manager that sorts entrants by overall rating, segments them into contiguous groups to keep skill ranges tight, and builds round-robin schedules. Admins can choose a per-player match quota (default) or a total-games target per group; doubles fixtures respect the per-player limits when that mode is selected.
+- The admin console includes a tournament manager that sorts entrants by overall rating, segments them into contiguous groups to keep skill ranges tight, and builds round-robin schedules. **Standard** events still let admins choose between per-player match quotas or total games per group, while the new **Competitive monthly** format locks in a fixed number of round-robin iterations, auto-balances doubles pairings, and enforces even match counts for every participant inside a group.
 - Admins can rename groups, tweak table assignments, reassign players, and edit match pairings/schedules before saving; validation ensures players stay within one group and teams match the tournament mode.
+- Competitive monthly events surface per-group standings (wins/losses, points for/against, differential, rank) in both the admin dashboard and the public detail page so podium results are available immediately after the final game.
 - Status controls—Scheduled, Active, Completed, Cancelled—drive reporting permissions. Completed events archive automatically when every matchup has a recorded result.
 - Reporting a tournament matchup runs through `POST /api/tournaments/:id/matches/:matchId/report`, creates a confirmed `Match` with participants, writes an audit entry, advances ratings, and closes the pairing. Admins and participants on the matchup can submit results while the tournament is Active.
 - Public routes (`/tournaments` and `/tournaments/[id]`) surface group rosters, matchups, and live results; authorised users can report scores inline with optimistic feedback.

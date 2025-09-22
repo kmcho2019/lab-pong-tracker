@@ -106,8 +106,9 @@ For platform-specific guidance (Vercel, Fly.io, Docker Compose), see [`docs/HOST
 
 ## Tournaments
 
-- Admins create tournaments from `/admin` by choosing singles or doubles mode, the number of groups, games per group, start/end times, and eligible participants.
-- Groups are filled serpentine by rating and round-robin (singles) or balanced random (doubles) matchups are generated automatically; admins can tweak assignments and pairings before saving.
+- Admins create tournaments from `/admin` by choosing singles or doubles mode, selecting a **Standard** or **Competitive monthly** format, configuring group counts, start/end times, and eligible participants. Competitive monthly events lock matches into round-robin play and expose an iteration selector.
+- Groups are filled serpentine by rating; competitive doubles pairings are fixed high/low to minimise team rating divergence, while standard events keep the previous balanced random generation. Admins can still tweak assignments and pairings before saving.
+- Standings (wins/losses, points for/against, differential, rank) update live for every group and are visible to both admins and players once results come in.
 - Status controls (Scheduled → Active → Completed/Cancelled) live in the same manager and drive the reporting window.
 - `/tournaments` lists active, upcoming, and archived events, while `/tournaments/[id]` shows group rosters and live matchups.
 - Participants on an active matchup—or any admin—can report the score inline; results immediately create confirmed matches, update ratings, and archive the pairing.

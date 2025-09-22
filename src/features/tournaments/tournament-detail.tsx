@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
 import {
+  TournamentFormat,
   TournamentMatchCountMode,
   TournamentMatchStatus,
   TournamentMode,
@@ -21,10 +22,12 @@ interface TournamentDetail {
   id: string;
   name: string;
   mode: TournamentMode;
+  format: TournamentFormat;
   status: TournamentStatus;
   matchCountMode: TournamentMatchCountMode;
   matchesPerPlayer: number | null;
   gamesPerGroup: number | null;
+  roundRobinIterations: number;
   startAt: string;
   endAt: string;
   participants: TournamentDetailParticipant[];
@@ -55,12 +58,14 @@ interface TournamentDetailGroup {
     };
   }>;
   matchups: TournamentDetailMatch[];
+  placements: TournamentDetailPlacement[];
 }
 
 interface TournamentDetailMatch {
   id: string;
   team1Ids: string[];
   team2Ids: string[];
+  iteration: number;
   status: TournamentMatchStatus;
   scheduledAt: string | null;
   resultMatch?: {
@@ -73,6 +78,17 @@ interface TournamentDetailMatch {
     location: string | null;
     note: string | null;
   } | null;
+}
+
+interface TournamentDetailPlacement {
+  teamIds: string[];
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDifferential: number;
+  rank: number;
 }
 
 type ParticipantLookup = Map<string, { displayName: string; username: string }>;
@@ -119,10 +135,13 @@ export function TournamentDetailClient({ tournament, userId, role }: TournamentD
   const start = leagueDayjs(tournament.startAt);
   const end = leagueDayjs(tournament.endAt);
   const isWithinWindow = now.isAfter(start) && now.isBefore(end);
+  const formatLabel = tournament.format === TournamentFormat.COMPETITIVE_MONTHLY ? 'Competitive monthly' : 'Standard format';
   const matchCountLabel =
-    tournament.matchCountMode === 'PER_PLAYER'
-      ? `${tournament.matchesPerPlayer ?? '–'} match${(tournament.matchesPerPlayer ?? 0) === 1 ? '' : 'es'} / player`
-      : `${tournament.gamesPerGroup ?? '–'} total games`;
+    tournament.format === TournamentFormat.COMPETITIVE_MONTHLY
+      ? `${tournament.roundRobinIterations}× round robin`
+      : tournament.matchCountMode === 'PER_PLAYER'
+        ? `${tournament.matchesPerPlayer ?? '–'} match${(tournament.matchesPerPlayer ?? 0) === 1 ? '' : 'es'} / player`
+        : `${tournament.gamesPerGroup ?? '–'} total games`;
 
   const handleOpenReport = (groupId: string, matchId: string) => {
     setActiveReport({ groupId, matchId });
@@ -191,6 +210,7 @@ export function TournamentDetailClient({ tournament, userId, role }: TournamentD
             <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
               <StatusBadge status={tournament.status} />
               <span>{tournament.mode}</span>
+              <span>{formatLabel}</span>
               <span>{matchCountLabel}</span>
             </div>
           </div>
@@ -253,7 +273,7 @@ export function TournamentDetailClient({ tournament, userId, role }: TournamentD
                           <div>
                             <div className="font-semibold text-slate-700 dark:text-slate-100">{teams}</div>
                             <div className="text-xs text-slate-400">
-                              {match.scheduledAt ? `Scheduled ${formatDate(match.scheduledAt)}` : 'Time TBD'} · {match.status}
+                              {match.scheduledAt ? `Scheduled ${formatDate(match.scheduledAt)}` : 'Time TBD'} · Iteration {match.iteration} · {match.status}
                             </div>
                           </div>
                           {hasResult ? (
@@ -300,6 +320,54 @@ export function TournamentDetailClient({ tournament, userId, role }: TournamentD
                   })
                 )}
               </div>
+              {group.placements.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                    Standings
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-fixed border-separate border-spacing-y-1 text-left text-xs text-slate-500 dark:text-slate-300">
+                      <thead>
+                        <tr className="uppercase tracking-wide">
+                          <th className="w-10 px-2">#</th>
+                          <th className="px-2">Team</th>
+                          <th className="w-16 px-2 text-right">W-L</th>
+                          <th className="w-14 px-2 text-right">PF</th>
+                          <th className="w-14 px-2 text-right">PA</th>
+                          <th className="w-14 px-2 text-right">+/-</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.placements.map((placement) => {
+                          const label = teamLabel(placement.teamIds, participantLookup);
+                          const isLeader = placement.rank === 1;
+                          return (
+                            <tr
+                              key={placement.teamIds.join('|')}
+                              className={clsx('rounded-lg bg-slate-50 text-slate-600 dark:bg-slate-800/60 dark:text-slate-200', {
+                                'font-semibold text-slate-800 dark:text-slate-100': isLeader
+                              })}
+                            >
+                              <td className="rounded-l-lg px-2">{placement.rank}</td>
+                              <td className="px-2">
+                                {isLeader ? '🏆 ' : ''}
+                                {label}
+                              </td>
+                              <td className="px-2 text-right">{placement.wins}-{placement.losses}</td>
+                              <td className="px-2 text-right">{placement.pointsFor}</td>
+                              <td className="px-2 text-right">{placement.pointsAgainst}</td>
+                              <td className="rounded-r-lg px-2 text-right">
+                                {placement.pointDifferential > 0 ? '+' : ''}
+                                {placement.pointDifferential}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
             </section>
           );
         })}

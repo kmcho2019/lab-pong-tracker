@@ -35,7 +35,14 @@ This guide expands on the README with the day‑to‑day tasks admins will perfo
 - **Dispute**: POST to `/api/matches/:id/dispute` with a reason string. Status changes to `DISPUTED`; rating updates are *not* rolled back automatically, so follow with recompute.
 - **API**: For scripted edits, use `PATCH /api/admin/matches/:id` with the same payload the match manager sends (scores, participants, target points, etc.).
 
-## 3. Ratings Recompute
+## 3. Tournament Management
+
+- In `/admin` the **Tournament Manager** lets you choose between the classic **Standard** format and the new **Competitive monthly** option. Standard mode keeps the per-player or total-games quotas; competitive mode locks brackets to round-robin play and exposes a field for the number of iterations.
+- Competitive monthly events automatically cluster players by overall rating, fix doubles pairings to minimise average rating divergence, and generate full round-robin schedules. Iteration numbers are shown on every matchup; they remain read-only when editing to protect schedule balance.
+- Both the admin dashboard and the public tournament page now show per-group standings (wins, losses, points for/against, differential, rank). Use this view to announce podium finishers as soon as the final results are in.
+- Player lists inside each group display the relevant singles/doubles rating so participants can gauge the strength of their opposition at a glance.
+
+## 4. Ratings Recompute
 
 Use when editing historical data or importing new matches.
 
@@ -43,7 +50,7 @@ Use when editing historical data or importing new matches.
 - Optional API call: `POST /api/admin/recompute` with body `{ "from": "2025-01-01T00:00:00.000Z" }` to replay from a specific date.
 - The routine resets `User` ratings/RD/volatility`, truncates `RatingHistory`, clears cached deltas, and replays confirmed matches chronologically. Avoid running during peak usage.
 
-## 4. Database Lifecycle
+## 5. Database Lifecycle
 
 ### Start Services
 
@@ -79,7 +86,7 @@ npm run db:seed
 
 Alternatively, connect with `psql` and issue `TRUNCATE` statements (`Match`, `MatchParticipant`, `MatchTeam`, `RatingHistory`, `AuditLog`, `User`, etc.).
 
-## 5. Backups & Maintenance
+## 6. Backups & Maintenance
 
 - **Backups**: For Docker Postgres, use `pg_dump`:
   ```bash
@@ -91,7 +98,7 @@ Alternatively, connect with `psql` and issue `TRUNCATE` statements (`Match`, `Ma
   ```
 - **Monitoring**: Tail the container logs `docker compose logs -f db` and the Next.js process (`npm run dev` or `npm run start`).
 
-## 6. Promotion Checklist
+## 7. Promotion Checklist
 
 1. Confirm migrations have been applied (`npx prisma migrate status`).
 2. Run tests (`npm run lint`, `npm run test`, optional `npm run build`).
@@ -99,7 +106,7 @@ Alternatively, connect with `psql` and issue `TRUNCATE` statements (`Match`, `Ma
 4. Deploy with Docker (`docker build -t lab-pong .` then `docker run --env-file .env -p 3000:3000 lab-pong`).
 5. Verify admin UI and leaderboard data after deploy.
 
-## 7. Troubleshooting Tips
+## 8. Troubleshooting Tips
 
 | Symptom | Fix |
 | ------- | --- |

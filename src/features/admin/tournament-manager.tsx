@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react';
 import clsx from 'clsx';
 import { useRouter } from 'next/navigation';
 import {
+  TournamentFormat,
   TournamentMatchCountMode,
   TournamentMatchStatus,
   TournamentMode,
@@ -20,7 +21,15 @@ interface AdminPlayer {
   doublesRating: number;
 }
 
-type ParticipantLookup = Map<string, { displayName: string; username: string }>;
+type ParticipantLookup = Map<
+  string,
+  {
+    displayName: string;
+    username: string;
+    singlesRating?: number | null;
+    doublesRating?: number | null;
+  }
+>;
 
 interface AdminTournamentParticipant {
   userId: string;
@@ -38,6 +47,7 @@ interface AdminTournamentMatch {
   groupId: string;
   team1Ids: string[];
   team2Ids: string[];
+  iteration: number;
   status: TournamentMatchStatus;
   scheduledAt: string | null;
   resultMatch?: {
@@ -56,16 +66,30 @@ interface AdminTournamentGroup {
   tableLabel: string;
   participants: AdminTournamentParticipant[];
   matchups: AdminTournamentMatch[];
+  placements: AdminTournamentPlacement[];
+}
+
+interface AdminTournamentPlacement {
+  teamIds: string[];
+  wins: number;
+  losses: number;
+  matchesPlayed: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDifferential: number;
+  rank: number;
 }
 
 interface AdminTournament {
   id: string;
   name: string;
   mode: TournamentMode;
+  format: TournamentFormat;
   status: TournamentStatus;
   matchCountMode: TournamentMatchCountMode;
   matchesPerPlayer: number | null;
   gamesPerGroup: number | null;
+  roundRobinIterations: number;
   startAt: string;
   endAt: string;
   participants: AdminTournamentParticipant[];
@@ -81,12 +105,14 @@ interface TournamentManagerProps {
 interface CreateFormState {
   name: string;
   mode: TournamentMode;
+  format: TournamentFormat;
   startAt: string;
   endAt: string;
   groupCount: number;
   matchCountMode: TournamentMatchCountMode;
   matchesPerPlayer: number;
   gamesPerGroup: number;
+  roundRobinIterations: number;
   selectedIds: Set<string>;
 }
 
@@ -113,6 +139,7 @@ type DraftMatch = {
   team2Ids: string[];
   scheduledAt: string | null;
   status: TournamentMatchStatus;
+  iteration: number;
 };
 
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -127,27 +154,41 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
   const [form, setForm] = useState<CreateFormState>({
     name: '',
     mode: TournamentMode.SINGLES,
+    format: TournamentFormat.STANDARD,
     startAt: defaultStart,
     endAt: defaultEnd,
     groupCount: Math.min(2, alphabet.length),
     matchCountMode: TournamentMatchCountMode.PER_PLAYER,
     matchesPerPlayer: 3,
     gamesPerGroup: 8,
+    roundRobinIterations: 1,
     selectedIds: new Set()
   });
   const [editing, setEditing] = useState<{ id: string; draft: DraftTournament } | null>(null);
   const [tournamentsCollapsed, setTournamentsCollapsed] = useState(false);
 
   const participantLookup: ParticipantLookup = useMemo(() => {
-    const map = new Map<string, { displayName: string; username: string }>();
+    const map = new Map<string, {
+      displayName: string;
+      username: string;
+      singlesRating?: number | null;
+      doublesRating?: number | null;
+    }>();
     players.forEach((player) => {
-      map.set(player.id, { displayName: player.displayName, username: player.username });
+      map.set(player.id, {
+        displayName: player.displayName,
+        username: player.username,
+        singlesRating: player.singlesRating,
+        doublesRating: player.doublesRating
+      });
     });
     tournaments.forEach((tournament) => {
       tournament.participants.forEach((participant) => {
         map.set(participant.userId, {
           displayName: participant.user.displayName,
-          username: participant.user.username
+          username: participant.user.username,
+          singlesRating: participant.user.singlesRating ?? null,
+          doublesRating: participant.user.doublesRating ?? null
         });
       });
     });
@@ -191,27 +232,38 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
     }
 
     const groupLabels = alphabet.slice(0, Math.min(form.groupCount, alphabet.length));
+    const isCompetitive = form.format === TournamentFormat.COMPETITIVE_MONTHLY;
+    const resolvedMatchCountMode = isCompetitive
+      ? TournamentMatchCountMode.PER_PLAYER
+      : form.matchCountMode;
 
     startTransition(async () => {
       setError(null);
       setMessage(null);
       try {
+        const body: Record<string, unknown> = {
+          name: form.name.trim() || `Tournament ${leagueDayjs().format('YYYY-MM-DD')}`,
+          mode: form.mode,
+          format: form.format,
+          matchCountMode: resolvedMatchCountMode,
+          groupLabels,
+          participantIds: Array.from(form.selectedIds),
+          startAt: toLeagueIso(form.startAt),
+          endAt: toLeagueIso(form.endAt),
+          roundRobinIterations: isCompetitive ? Math.max(1, form.roundRobinIterations) : 1
+        };
+
+        if (!isCompetitive && resolvedMatchCountMode === TournamentMatchCountMode.PER_PLAYER) {
+          body.matchesPerPlayer = form.matchesPerPlayer;
+        }
+        if (!isCompetitive && resolvedMatchCountMode === TournamentMatchCountMode.TOTAL_MATCHES) {
+          body.gamesPerGroup = form.gamesPerGroup;
+        }
+
         const response = await fetch('/api/admin/tournaments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: form.name.trim() || `Tournament ${leagueDayjs().format('YYYY-MM-DD')}`,
-            mode: form.mode,
-            matchCountMode: form.matchCountMode,
-            matchesPerPlayer:
-              form.matchCountMode === TournamentMatchCountMode.PER_PLAYER ? form.matchesPerPlayer : undefined,
-            gamesPerGroup:
-              form.matchCountMode === TournamentMatchCountMode.TOTAL_MATCHES ? form.gamesPerGroup : undefined,
-            groupLabels,
-            participantIds: Array.from(form.selectedIds),
-            startAt: toLeagueIso(form.startAt),
-            endAt: toLeagueIso(form.endAt)
-          })
+          body: JSON.stringify(body)
         });
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
@@ -249,7 +301,8 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
           team1Ids: [...match.team1Ids],
           team2Ids: [...match.team2Ids],
           scheduledAt: match.scheduledAt ? leagueDayjs(match.scheduledAt).tz().format('YYYY-MM-DDTHH:mm') : null,
-          status: match.status
+          status: match.status,
+          iteration: match.iteration
         }))
       }))
     };
@@ -330,6 +383,7 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
   };
 
   const selectedCount = form.selectedIds.size;
+  const isCompetitiveFormat = form.format === TournamentFormat.COMPETITIVE_MONTHLY;
 
   return (
     <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow dark:border-slate-700 dark:bg-slate-800">
@@ -342,7 +396,7 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
 
       <section className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
         <h3 className="text-base font-semibold">Create Tournament</h3>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <label className="flex flex-col gap-1 text-sm">
             <span>Name</span>
             <input
@@ -362,6 +416,30 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
             >
               <option value={TournamentMode.SINGLES}>Singles</option>
               <option value={TournamentMode.DOUBLES}>Doubles</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>Format</span>
+            <select
+              value={form.format}
+              onChange={(event) => {
+                const nextFormat = event.target.value as TournamentFormat;
+                setForm((previous) => ({
+                  ...previous,
+                  format: nextFormat,
+                  matchCountMode:
+                    nextFormat === TournamentFormat.COMPETITIVE_MONTHLY
+                      ? TournamentMatchCountMode.PER_PLAYER
+                      : previous.matchCountMode,
+                  roundRobinIterations: nextFormat === TournamentFormat.COMPETITIVE_MONTHLY
+                    ? Math.max(1, previous.roundRobinIterations)
+                    : 1
+                }));
+              }}
+              className="rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-700"
+            >
+              <option value={TournamentFormat.STANDARD}>Standard</option>
+              <option value={TournamentFormat.COMPETITIVE_MONTHLY}>Competitive monthly</option>
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -406,12 +484,33 @@ export function TournamentManager({ players, tournaments, duplicateNames }: Tour
                 }))
               }
               className="rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-700"
+              disabled={isCompetitiveFormat}
             >
               <option value={TournamentMatchCountMode.PER_PLAYER}>Matches per player</option>
               <option value={TournamentMatchCountMode.TOTAL_MATCHES}>Total games per group</option>
             </select>
           </label>
-          {form.matchCountMode === TournamentMatchCountMode.PER_PLAYER ? (
+          {isCompetitiveFormat ? (
+            <label className="flex flex-col gap-1 text-sm">
+              <span>Round robin iterations</span>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={form.roundRobinIterations}
+                onChange={(event) =>
+                  setForm((previous) => ({
+                    ...previous,
+                    roundRobinIterations: Math.max(1, Number(event.target.value) || 1)
+                  }))
+                }
+                className="rounded border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-700"
+              />
+              <span className="text-xs text-slate-500">
+                Each group plays a full round robin this many time(s).
+              </span>
+            </label>
+          ) : form.matchCountMode === TournamentMatchCountMode.PER_PLAYER ? (
             <label className="flex flex-col gap-1 text-sm">
               <span>Matches / player</span>
               <input
@@ -555,10 +654,13 @@ function TournamentCard({
     TournamentStatus.COMPLETED,
     TournamentStatus.CANCELLED
   ];
-  const matchSummary =
-    tournament.matchCountMode === TournamentMatchCountMode.PER_PLAYER
-      ? `${tournament.matchesPerPlayer ?? '–'} matches / player`
-      : `${tournament.gamesPerGroup ?? 0} games / group`;
+  const isCompetitive = tournament.format === TournamentFormat.COMPETITIVE_MONTHLY;
+  const matchSummary = isCompetitive
+    ? `${tournament.roundRobinIterations}× round robin`
+    : tournament.matchCountMode === TournamentMatchCountMode.PER_PLAYER
+        ? `${tournament.matchesPerPlayer ?? '–'} matches / player`
+        : `${tournament.gamesPerGroup ?? 0} games / group`;
+  const formatLabel = isCompetitive ? 'Competitive monthly' : 'Standard';
   const [collapsed, setCollapsed] = useState<boolean>(tournament.status !== TournamentStatus.ACTIVE);
 
   useEffect(() => {
@@ -575,6 +677,7 @@ function TournamentCard({
           <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
             <StatusBadge status={tournament.status} />
             <span>{tournament.mode}</span>
+            <span>{formatLabel}</span>
             <span>{matchSummary}</span>
           </div>
         </div>
@@ -691,7 +794,19 @@ function TournamentReadonly({ tournament, participantLookup, duplicateNames }: T
           <ul className="space-y-1 text-xs text-slate-600 dark:text-slate-300">
             {group.participants.map((participant) => (
               <li key={participant.userId}>
-                {formatDisplayLabel(participant.user.displayName, participant.user.username, duplicateNames)}
+                {(() => {
+                  const base = formatDisplayLabel(
+                    participant.user.displayName,
+                    participant.user.username,
+                    duplicateNames
+                  );
+                  const lookupRatings = participantLookup.get(participant.userId);
+                  const rating =
+                    tournament.mode === TournamentMode.SINGLES
+                      ? participant.user.singlesRating ?? lookupRatings?.singlesRating ?? null
+                      : participant.user.doublesRating ?? lookupRatings?.doublesRating ?? null;
+                  return rating ? `${base} (${Math.round(rating)})` : base;
+                })()}
               </li>
             ))}
           </ul>
@@ -711,6 +826,7 @@ function TournamentReadonly({ tournament, participantLookup, duplicateNames }: T
                       {teamLabel(match.team2Ids, participantLookup, duplicateNames)}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-wide text-slate-400">
+                      <span>Iteration {match.iteration}</span>
                       <span>{match.status}</span>
                       {score ? <span className="text-slate-500">Final {score}</span> : null}
                       {match.resultMatch?.playedAt ? <span>{formatDate(match.resultMatch.playedAt)}</span> : null}
@@ -720,6 +836,52 @@ function TournamentReadonly({ tournament, participantLookup, duplicateNames }: T
               })
             )}
           </div>
+          {group.placements.length > 0 ? (
+            <div className="space-y-1 text-xs">
+              <h6 className="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">Standings</h6>
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed border-separate border-spacing-y-1 text-left">
+                  <thead className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <tr>
+                      <th className="w-10 px-2">#</th>
+                      <th className="px-2">Team</th>
+                      <th className="w-16 px-2 text-right">W-L</th>
+                      <th className="w-16 px-2 text-right">PF</th>
+                      <th className="w-16 px-2 text-right">PA</th>
+                      <th className="w-16 px-2 text-right">+/-</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.placements.map((placement) => {
+                      const label = teamLabel(placement.teamIds, participantLookup, duplicateNames);
+                      const isLeader = placement.rank === 1;
+                      return (
+                        <tr
+                          key={placement.teamIds.join('|')}
+                          className={clsx('rounded-lg bg-slate-50 text-slate-600 dark:bg-slate-800/60 dark:text-slate-200', {
+                            'font-semibold text-slate-800 dark:text-slate-100': isLeader
+                          })}
+                        >
+                          <td className="rounded-l-lg px-2">{placement.rank}</td>
+                          <td className="px-2">
+                            {isLeader ? '🏆 ' : ''}
+                            {label}
+                          </td>
+                          <td className="px-2 text-right">{placement.wins}-{placement.losses}</td>
+                          <td className="px-2 text-right">{placement.pointsFor}</td>
+                          <td className="px-2 text-right">{placement.pointsAgainst}</td>
+                          <td className="rounded-r-lg px-2 text-right">
+                            {placement.pointDifferential > 0 ? '+' : ''}
+                            {placement.pointDifferential}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </div>
       ))}
     </div>
@@ -831,11 +993,19 @@ function TournamentEditor({ draft, tournament, participantLookup, duplicateNames
                 group.participantIds.map((userId) => (
                   <div key={userId} className="flex items-center justify-between rounded border border-slate-200 px-2 py-1 dark:border-slate-600">
                     <span>
-                      {formatDisplayLabel(
-                        participantLookup.get(userId)?.displayName ?? userId,
-                        participantLookup.get(userId)?.username ?? userId,
-                        duplicateNames
-                      )}
+                      {(() => {
+                        const participant = participantLookup.get(userId);
+                        const base = formatDisplayLabel(
+                          participant?.displayName ?? userId,
+                          participant?.username ?? userId,
+                          duplicateNames
+                        );
+                        const rating =
+                          tournament.mode === TournamentMode.SINGLES
+                            ? participant?.singlesRating ?? null
+                            : participant?.doublesRating ?? null;
+                        return rating ? `${base} (${Math.round(rating)})` : base;
+                      })()}
                     </span>
                     <button
                       type="button"
@@ -862,6 +1032,10 @@ function TournamentEditor({ draft, tournament, participantLookup, duplicateNames
               ) : (
                 group.matches.map((match) => (
                   <div key={match.id} className="space-y-2 rounded border border-dashed border-slate-300 p-2 dark:border-slate-600">
+                    <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-300">
+                      <span>Iteration {match.iteration}</span>
+                      <span>{match.status}</span>
+                    </div>
                     <div className="grid gap-2 md:grid-cols-2">
                       <TeamEditor
                         label="Team 1"

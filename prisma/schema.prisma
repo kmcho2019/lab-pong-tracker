@@ -210,6 +210,11 @@ enum TournamentMode {
   DOUBLES
 }
 
+enum TournamentFormat {
+  STANDARD
+  COMPETITIVE_MONTHLY
+}
+
 enum TournamentStatus {
   SCHEDULED
   ACTIVE
@@ -232,10 +237,12 @@ model Tournament {
   id            String            @id @default(cuid())
   name          String
   mode          TournamentMode
+  format        TournamentFormat  @default(STANDARD)
   status        TournamentStatus @default(SCHEDULED)
   matchCountMode TournamentMatchCountMode @default(PER_PLAYER)
   matchesPerPlayer Int?          @default(3)
   gamesPerGroup Int?             @default(8)
+  roundRobinIterations Int        @default(1)
   startAt       DateTime
   endAt         DateTime
   createdAt     DateTime         @default(now())
@@ -284,6 +291,7 @@ model TournamentMatch {
   id             String                 @id @default(cuid())
   tournamentId   String
   groupId        String
+  iteration      Int                    @default(1)
   scheduledAt    DateTime?
   status         TournamentMatchStatus  @default(SCHEDULED)
   team1Ids       String[]
