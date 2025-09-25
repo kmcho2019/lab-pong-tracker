@@ -28,6 +28,21 @@ This guide expands on the README with the day‑to‑day tasks admins will perfo
 - **Edit display name / handle**: Click “Edit name” to adjust the member’s display name or `@handle`. Handles must be 3–32 lowercase characters (letters, digits, hyphen, underscore). Leave the handle blank to auto-generate a new slug from the display name.
 - **Checklist**: Always keep at least two active admins to avoid lockouts when people leave the lab.
 
+### 1.2 Linking GitHub logins to seeded users
+
+If you import users directly into the database (CSV/SQL) and they later attempt to sign in with GitHub, NextAuth will block the login with `?error=OAuthAccountNotLinked` until the OAuth identity is linked. To connect the GitHub account to the existing row:
+
+1. Ask the member for their GitHub numeric id (they can visit `https://api.github.com/users/<username>` and copy the `"id"` value).
+2. Look up the internal user id: `SELECT id FROM "User" WHERE email = 'person@example.com';`
+3. Insert the join row:
+
+   ```sql
+   INSERT INTO "Account" (id, "userId", provider, type, "providerAccountId")
+   VALUES (gen_random_uuid(), '<user-id>', 'github', 'oauth', '<github-id>');
+   ```
+
+Once the `Account` record exists, the user can sign in with GitHub normally. Repeat for other providers by replacing `'github'` with the relevant provider slug and using the corresponding account id.
+
 ## 2. Match Moderation
 
 - **Match manager UI**: `/admin` → “Match Management” collapses by default. Expand the section to edit scores, update participants, or cancel a match. Saving a change automatically triggers a rating recompute.

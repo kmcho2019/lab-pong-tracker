@@ -55,6 +55,8 @@ The endpoint responds with counts of created, updated, and skipped users. Repeat
 4. Use **Member Lifecycle** to promote a co-admin immediately so there is always a backup.
 5. Duplicate display names are disambiguated automatically in the UI (`Alex Kim (@alex)`), so you can reuse existing nicknames without confusion.
 
+> Seeded users who plan to log in with GitHub must have their OAuth identity linked afterwards—see "Linking GitHub logins" in `docs/ADMIN_GUIDE.md` for the quick SQL insert that ties the GitHub account to the existing `User` row.
+
 ## 4. Optional: Import Historical Results
 
 1. Batch add all legacy players with their final-season ratings.

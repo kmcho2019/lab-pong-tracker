@@ -84,6 +84,40 @@ DELETE FROM "MatchTeam" WHERE matchId = 'match-id';
 
 Run recompute afterwards.
 
+### 2.5 Linking an OAuth account (GitHub) to an existing user
+
+Sometimes you seed `User` rows manually (SQL import, CSV, etc.) and later allow the same people to log in with GitHub. To avoid the `OAuthAccountNotLinked` error, insert the missing row in the `Account` table so NextAuth can associate the OAuth identity with the existing profile.
+
+1. **Find the user id**:
+
+   ```sql
+   SELECT id, email FROM "User" WHERE email = 'player@example.com';
+   ```
+
+2. **Get the GitHub account id** (the numeric `providerAccountId`): ask the user to hit `https://api.github.com/users/<github-username>` and send you the `"id"` value, or capture it temporarily by logging `account.providerAccountId` inside the NextAuth `signIn` callback.
+
+3. **Insert the OAuth link**:
+
+   ```sql
+   INSERT INTO "Account" (
+     id,
+     "userId",
+     provider,
+     type,
+     "providerAccountId"
+   ) VALUES (
+     gen_random_uuid(),          -- or cuid()
+     '<user-id-from-step-1>',
+     'github',
+     'oauth',
+     '<github-id-from-step-2>'
+   );
+   ```
+
+   Optional token fields (`access_token`, `refresh_token`, `expires_at`, etc.) can remain `NULL` unless you need them for API calls.
+
+After this row exists, the user can sign in with GitHub and will land on the pre-existing account instead of triggering an error.
+
 ## 3. Backups and Restores
 
 ### 3.1 Backups with `pg_dump`
