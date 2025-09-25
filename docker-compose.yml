@@ -1,5 +1,5 @@
 # Specify the Docker Compose file format version
-version: '3.8'
+version: "3.8"
 
 # Define the services (containers) that make up your app
 services:
@@ -11,7 +11,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/mydb}
+      - DATABASE_URL=${DATABASE_URL:-postgresql://user:password@db:5432/lab_pong}
       - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
     depends_on:
       - db # This service will wait for the 'db' service to be ready before starting
@@ -23,7 +23,7 @@ services:
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=mydb
+      - POSTGRES_DB=lab_pong
     ports:
       - "5432:5432" # Optionally map the DB port for local tools like pgAdmin
     volumes:

@@ -89,21 +89,65 @@ Run recompute afterwards.
 ### 3.1 Backups with `pg_dump`
 
 ```bash
-docker compose exec db pg_dump -U user -d lab_pong > backup.sql
+docker compose exec db pg_dump -U user -d lab_pong --no-owner --no-privileges -c > backup.sql
 ```
 
-### 3.2 Restores with `psql`
+- `--no-owner --no-privileges` removes role/permission statements so the archive can be restored into any environment (local Docker, staging, Neon, etc.) without superuser rights.
+- `-c` (alias `--clean`) adds `DROP` statements ahead of each object, making the restore idempotent.
+- Add `--format=c` if you prefer a compressed custom-format dump that can be partially restored with `pg_restore`.
+
+#### 3.1.1 Backups from managed providers (Neon, RDS, etc.)
+
+```bash
+pg_dump "postgresql://<user>:<password>@<tenant>.<region>.neon.tech/<database>?sslmode=require" \
+  --no-owner --no-privileges -c --format=c \
+  > neon-backup-$(date +%F).dump
+```
+
+- Managed services often prohibit `ALTER ROLE`; the owner/privilege flags prevent restore failures.
+- Neon requires TLS, hence the `sslmode=require` query parameter (or export `PGSSLMODE=require`).
+- Store snapshots in durable storage (S3/NAS) and record the branch + timestamp alongside the file.
+
+### 3.2 Restores with `psql` / `pg_restore`
+
+Plain SQL archives pipe straight into `psql`:
 
 ```bash
 cat backup.sql | docker compose exec -T db psql -U user -d lab_pong
 ```
 
+Custom-format dumps (recommended for Neon) use `pg_restore`:
+
+```bash
+docker compose exec -T db pg_restore \
+  --clean --if-exists --no-owner --no-privileges \
+  -U user -d lab_pong < neon-backup.dump
+```
+
+To restore directly into an external database:
+
+```bash
+pg_restore --clean --if-exists --no-owner --no-privileges \
+  --dbname "postgresql://<user>:<password>@<tenant>.<region>.neon.tech/<database>?sslmode=require" \
+  neon-backup.dump
+```
+
+> Neon best practice: create a fresh branch, restore into it, verify the data, then promote the branch via the Neon console/CLI.
+
 ### 3.3 Scheduled Backups
 
-Use cron to run `pg_dump` daily:
+Use cron (or a CI runner) to automate portable dumps:
 
 ```
-0 2 * * * docker compose exec db pg_dump -U user -d lab_pong > /backups/lab_pong-$(date +\%F).sql
+0 2 * * * docker compose exec db pg_dump -U user -d lab_pong --no-owner --no-privileges -c > /backups/lab_pong-$(date +\%F).sql
+```
+
+For Neon/external hosts, run the same command wherever credentials are stored securely:
+
+```
+0 2 * * * pg_dump "postgresql://<user>:<password>@<tenant>.<region>.neon.tech/<database>?sslmode=require" \
+    --no-owner --no-privileges -c --format=c \
+    > /backups/neon-lab-pong-$(date +\%F).dump
 ```
 
 ## 4. Database Reset
@@ -124,10 +168,10 @@ npm run db:seed
 
 ## 6. Troubleshooting Checklist
 
-| Symptom | Resolution |
-| --- | --- |
-| `prisma` connection errors | Ensure docker service is running and `.env` has correct `DATABASE_URL`. |
-| Migrations missing | `npx prisma migrate status`, re-run `npx prisma migrate deploy`. |
+| Symptom                    | Resolution                                                                                            |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `prisma` connection errors | Ensure docker service is running and `.env` has correct `DATABASE_URL`.                               |
+| Migrations missing         | `npx prisma migrate status`, re-run `npx prisma migrate deploy`.                                      |
 | Unable to connect via psql | Confirm host/port credentials, check firewall, ensure postgres container is up (`docker compose ps`). |
 
 Keep this guide alongside `docs/ADMIN_GUIDE.md` for a complete operational playbook.
