@@ -23,7 +23,7 @@ describe('rating sparkline chart builder', () => {
     },
     {
       playedAt: '2025-09-05T09:15:00Z',
-      rating: 1495,
+      rating: 1525,
       rd: 62,
       matchId: 'm3',
       matchInfo: null,
@@ -38,10 +38,12 @@ describe('rating sparkline chart builder', () => {
     expect(chart.points[1].matchIndex).toBe(2);
     expect(chart.points[0].rating).toBe(1500);
     expect(chart.points[0].ciTopValue).toBeCloseTo(1500 + 120);
-    expect(chart.points[2].ciBottomValue).toBeCloseTo(1495 - 124);
+    expect(chart.points[2].ciBottomValue).toBeCloseTo(1525 - 124);
     expect(chart.ticks.x.length).toBeGreaterThan(0);
     expect(chart.ticks.x[0].label).toMatch(/\d{2}-\d{2}/);
     expect(chart.confidenceAreaPath).toBeTruthy();
+    expect(chart.trendSlope).toBeGreaterThan(0);
+    expect(chart.trendLinePath).toMatch(/L/);
   });
 
   it('uses match indices for x-axis ticks when axis mode is index', () => {
@@ -52,5 +54,31 @@ describe('rating sparkline chart builder', () => {
     expect(chart.ticks.x[0].label).toBe('#1');
     expect(chart.ticks.x[chart.ticks.x.length - 1].label).toBe(`#${sampleHistory.length}`);
     expect(chart.confidenceAreaPath).toContain('Z');
+    expect(chart.trendSlope).toBeGreaterThan(0);
+  });
+
+  it('reports downward trends with negative slope', () => {
+    const downwardHistory: RatingHistoryPoint[] = [
+      {
+        playedAt: '2025-09-01T10:00:00Z',
+        rating: 1520,
+        rd: 60,
+        matchId: 'm1',
+        matchInfo: null,
+        mode: 'overall'
+      },
+      {
+        playedAt: '2025-09-05T10:00:00Z',
+        rating: 1500,
+        rd: 58,
+        matchId: 'm2',
+        matchInfo: null,
+        mode: 'overall'
+      }
+    ];
+
+    const chart = buildChart(downwardHistory, 'time');
+    expect(chart.trendSlope).toBeLessThan(0);
+    expect(chart.trendLinePath).toMatch(/M/);
   });
 });

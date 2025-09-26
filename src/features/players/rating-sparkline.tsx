@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from 'react';
+import clsx from 'clsx';
 import { leagueDayjs, LEAGUE_TIMEZONE } from '@/utils/time';
 import type { RatingHistoryPoint } from '@/types/rating-history';
 
@@ -33,17 +34,20 @@ export type ChartBuildResult = {
   points: ChartPoint[];
   ticks: ChartTicks;
   confidenceAreaPath: string | null;
+  trendSlope: number;
+  trendLinePath: string | null;
 };
 
 const dimensions = { width: 640, height: 220, padding: 48 } as const;
 
 export function RatingSparkline({ history }: RatingSparklineProps) {
   const [axisMode, setAxisMode] = useState<AxisMode>('time');
-  const { points, ticks, confidenceAreaPath } = useMemo(
+  const { points, ticks, confidenceAreaPath, trendSlope, trendLinePath } = useMemo(
     () => buildChart(history, axisMode),
     [history, axisMode]
   );
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const trend: 'up' | 'down' | 'flat' = trendSlope > 1 ? 'up' : trendSlope < -1 ? 'down' : 'flat';
 
   if (points.length === 0) {
     return (
@@ -61,30 +65,49 @@ export function RatingSparkline({ history }: RatingSparklineProps) {
 
   return (
     <div className="relative">
-      <div className="mb-2 flex items-center justify-end gap-2 text-xs text-slate-500 dark:text-slate-300">
-        <span className="hidden sm:inline">X-axis</span>
-        <button
-          type="button"
-          onClick={() => setAxisMode('time')}
-          className={`rounded-full px-3 py-1 font-semibold transition ${
-            axisMode === 'time'
-              ? 'bg-blue-600 text-white shadow'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
-          }`}
-        >
-          Date
-        </button>
-        <button
-          type="button"
-          onClick={() => setAxisMode('index')}
-          className={`rounded-full px-3 py-1 font-semibold transition ${
-            axisMode === 'index'
-              ? 'bg-blue-600 text-white shadow'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
-          }`}
-        >
-          Match #
-        </button>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-300">
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:inline">X-axis</span>
+          <button
+            type="button"
+            onClick={() => setAxisMode('time')}
+            className={clsx(
+              'rounded-full px-3 py-1 font-semibold transition',
+              axisMode === 'time'
+                ? 'bg-blue-600 text-white shadow'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
+            )}
+          >
+            Date
+          </button>
+          <button
+            type="button"
+            onClick={() => setAxisMode('index')}
+            className={clsx(
+              'rounded-full px-3 py-1 font-semibold transition',
+              axisMode === 'index'
+                ? 'bg-blue-600 text-white shadow'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600'
+            )}
+          >
+            Match #
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={clsx(
+              'inline-flex items-center gap-2 rounded-full px-3 py-1 font-semibold uppercase tracking-wide',
+              trend === 'up'
+                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
+                : trend === 'down'
+                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200'
+                : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-200'
+            )}
+          >
+            {trend === 'up' ? 'Trend ↑' : trend === 'down' ? 'Trend ↓' : 'Trend ↔'}
+          </span>
+          <SparklineLegend trend={trend} />
+        </div>
       </div>
       <svg
         viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
@@ -131,8 +154,8 @@ export function RatingSparkline({ history }: RatingSparklineProps) {
             </text>
           </g>
         ))}
-        {ticks.x.map((tick) => (
-          <g key={`x-${tick.label}`}>
+        {ticks.x.map((tick, index) => (
+          <g key={`x-${axisMode}-${index}`}>
             <line
               x1={tick.x}
               x2={tick.x}
@@ -155,6 +178,11 @@ export function RatingSparkline({ history }: RatingSparklineProps) {
 
         {/* Confidence interval area */}
         {confidenceAreaPath ? <path d={confidenceAreaPath} fill="#2563eb" opacity={0.12} /> : null}
+
+        {/* Trend line */}
+        {trendLinePath ? (
+          <path d={trendLinePath} fill="none" stroke="#f97316" strokeWidth={2} strokeDasharray="6 4" opacity={0.7} />
+        ) : null}
 
         {/* Line and points */}
         <path d={pathD} fill="none" stroke="#2563eb" strokeWidth={2} />
@@ -260,7 +288,7 @@ export function buildChart(history: RatingHistoryPoint[], axisMode: AxisMode): C
     .sort((a, b) => a.playedAt.valueOf() - b.playedAt.valueOf());
 
   if (filtered.length === 0) {
-    return { points: [], ticks: { x: [], y: [] }, confidenceAreaPath: null };
+    return { points: [], ticks: { x: [], y: [] }, confidenceAreaPath: null, trendSlope: 0, trendLinePath: null };
   }
 
   const indexed = filtered.map((entry, idx) => ({ ...entry, matchIndex: idx + 1 }));
@@ -414,11 +442,45 @@ export function buildChart(history: RatingHistoryPoint[], axisMode: AxisMode): C
     return { y, label: Math.round(value).toString() };
   });
 
+  const trendSlope = computeTrend(points);
+  const trendLinePath = buildTrendLine(points);
+
   return {
     points,
     ticks: { x: xTicks, y: yTicks },
-    confidenceAreaPath: buildConfidenceAreaPath(points)
+    confidenceAreaPath: buildConfidenceAreaPath(points),
+    trendSlope,
+    trendLinePath
   };
+}
+
+function computeTrend(points: ChartPoint[]): number {
+  if (points.length < 2) return 0;
+  const first = points[0];
+  const last = points[points.length - 1];
+  return last.rating - first.rating;
+}
+
+function buildTrendLine(points: ChartPoint[]): string | null {
+  if (points.length < 2) return null;
+  const n = points.length;
+  const meanX = points.reduce((acc, point) => acc + point.x, 0) / n;
+  const meanY = points.reduce((acc, point) => acc + point.y, 0) / n;
+  let numerator = 0;
+  let denominator = 0;
+  for (const point of points) {
+    const dx = point.x - meanX;
+    numerator += dx * (point.y - meanY);
+    denominator += dx * dx;
+  }
+  if (denominator === 0) return null;
+  const slope = numerator / denominator;
+  const intercept = meanY - slope * meanX;
+  const startPoint = points[0];
+  const endPoint = points[points.length - 1];
+  const startY = slope * startPoint.x + intercept;
+  const endY = slope * endPoint.x + intercept;
+  return `M ${startPoint.x.toFixed(2)} ${startY.toFixed(2)} L ${endPoint.x.toFixed(2)} ${endY.toFixed(2)}`;
 }
 
 function buildConfidenceAreaPath(points: ChartPoint[]): string | null {
@@ -439,6 +501,35 @@ function buildConfidenceAreaPath(points: ChartPoint[]): string | null {
     .map((point) => `L ${point.x.toFixed(2)} ${point.ciBottomY.toFixed(2)}`)
     .join(' ');
   return `${upperPath} ${lowerPath} Z`;
+}
+
+function SparklineLegend({ trend }: { trend: 'up' | 'down' | 'flat' }) {
+  return (
+    <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-300">
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-1.5 w-4 rounded-full bg-[#2563eb]" aria-hidden />
+        Rating
+      </span>
+      <span className="flex items-center gap-1">
+        <span className="inline-block h-1.5 w-4 rounded-full border border-dashed border-[#2563eb]" aria-hidden />
+        ±2 RD
+      </span>
+      <span className="flex items-center gap-1">
+        <span
+          className={clsx(
+            'inline-block h-1.5 w-4 rounded-full border border-dashed',
+            trend === 'up'
+              ? 'border-emerald-500'
+              : trend === 'down'
+              ? 'border-rose-500'
+              : 'border-slate-400'
+          )}
+          aria-hidden
+        />
+        Trend
+      </span>
+    </div>
+  );
 }
 
 function computeExtent(values: number[]): [number | null, number | null] {
