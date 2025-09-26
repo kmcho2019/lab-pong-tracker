@@ -26,7 +26,7 @@ export interface ProfileMatch {
 
 export interface RatingSnapshot {
   ratingBefore: number | null;
-  ratingAfter: number;
+  ratingAfter: number | null;
   rdBefore: number | null;
-  rdAfter: number;
+  rdAfter: number | null;
 }
