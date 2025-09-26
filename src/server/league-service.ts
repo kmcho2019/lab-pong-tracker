@@ -1,6 +1,7 @@
-import { MatchStatus, MatchType } from '@prisma/client';
+import { MatchStatus, MatchType, RatingHistoryMode as PrismaRatingHistoryMode } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import type { RatingHistoryMatchInfo, RatingHistoryPoint } from '@/types/rating-history';
+import { GLICKO_SCALE } from '@/lib/glicko2';
+import type { RatingHistoryMatchInfo, RatingHistoryMode, RatingHistoryPoint } from '@/types/rating-history';
 import type { ProfileMatch } from '@/types/player-profile';
 
 export type LeaderboardMode = 'overall' | 'singles' | 'doubles';
@@ -143,8 +144,12 @@ export async function getPlayerProfile(identifier: string) {
     },
     include: {
       ratingHistory: {
-        orderBy: { playedAt: 'asc' },
-        take: 200,
+        orderBy: [
+          { playedAt: 'asc' },
+          { mode: 'asc' },
+          { createdAt: 'asc' }
+        ],
+        take: 300,
         include: {
           match: {
             include: {
@@ -185,45 +190,85 @@ export async function getPlayerProfile(identifier: string) {
     }
   });
 
-  const ratingTimeline: RatingHistoryPoint[] = player.ratingHistory.map((entry) => {
-    const match = entry.match;
+  const modeMap: Record<PrismaRatingHistoryMode, RatingHistoryMode> = {
+    [PrismaRatingHistoryMode.OVERALL]: 'overall',
+    [PrismaRatingHistoryMode.SINGLES]: 'singles',
+    [PrismaRatingHistoryMode.DOUBLES]: 'doubles'
+  };
 
-    if (!match) {
-      return {
-        playedAt: entry.playedAt ? entry.playedAt.toISOString() : null,
-        rating: entry.rating,
-        rd: entry.rd,
-        matchId: entry.matchId,
-        matchInfo: null
-      } satisfies RatingHistoryPoint;
+  const previousModeState: Record<RatingHistoryMode, { rating: number; rd: number } | null> = {
+    overall: null,
+    singles: null,
+    doubles: null
+  };
+
+  const matchModeSnapshots = new Map<
+    string,
+    {
+      ratingBefore: number | null;
+      ratingAfter: number;
+      rdBefore: number | null;
+      rdAfter: number;
+    }
+  >();
+
+  const ratingTimeline: RatingHistoryPoint[] = [];
+
+  for (const entry of player.ratingHistory) {
+    const mode = modeMap[entry.mode];
+    const ratingAfter = entry.rating;
+    const rdAfter = entry.rd;
+    const ratingBefore = ratingAfter - entry.deltaMu * GLICKO_SCALE;
+    const previousState = previousModeState[mode];
+    const rdBefore = previousState?.rd ?? null;
+
+    if (entry.matchId) {
+      matchModeSnapshots.set(`${entry.matchId}:${mode}`, {
+        ratingBefore: Number.isFinite(ratingBefore) ? ratingBefore : previousState?.rating ?? null,
+        ratingAfter,
+        rdBefore,
+        rdAfter
+      });
     }
 
-    const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
-    const team2 = match.participants.filter((participant) => participant.team?.teamNo === 2);
-    const playerOnTeam1 = team1.some((participant) => participant.userId === player.id);
-    const playerTeam = playerOnTeam1 ? team1 : team2;
-    const opponentTeam = playerOnTeam1 ? team2 : team1;
-    const didWin = (playerOnTeam1 ? match.team1Score : match.team2Score) > (playerOnTeam1 ? match.team2Score : match.team1Score);
+    const match = entry.match;
+    let matchInfo: RatingHistoryMatchInfo | null = null;
 
-    const matchInfo: RatingHistoryMatchInfo = {
-      id: match.id,
-      score: `${match.team1Score} – ${match.team2Score}`,
-      result: didWin ? 'Win' : 'Loss',
-      matchType: match.matchType,
-      opponents: opponentTeam.map((participant) => participant.user.displayName),
-      teammates: playerTeam
-        .filter((participant) => participant.userId !== player.id)
-        .map((participant) => participant.user.displayName)
-    };
+    if (match) {
+      const team1 = match.participants.filter((participant) => participant.team?.teamNo === 1);
+      const team2 = match.participants.filter((participant) => participant.team?.teamNo === 2);
+      const playerOnTeam1 = team1.some((participant) => participant.userId === player.id);
+      const playerTeam = playerOnTeam1 ? team1 : team2;
+      const opponentTeam = playerOnTeam1 ? team2 : team1;
+      const didWin = (playerOnTeam1 ? match.team1Score : match.team2Score) >
+        (playerOnTeam1 ? match.team2Score : match.team1Score);
 
-    return {
+      matchInfo = {
+        id: match.id,
+        score: `${match.team1Score} – ${match.team2Score}`,
+        result: didWin ? 'Win' : 'Loss',
+        matchType: match.matchType,
+        opponents: opponentTeam.map((participant) => participant.user.displayName),
+        teammates: playerTeam
+          .filter((participant) => participant.userId !== player.id)
+          .map((participant) => participant.user.displayName)
+      };
+    }
+
+    ratingTimeline.push({
       playedAt: entry.playedAt ? entry.playedAt.toISOString() : null,
-      rating: entry.rating,
-      rd: entry.rd,
+      rating: ratingAfter,
+      rd: rdAfter,
+      mode,
       matchId: entry.matchId,
       matchInfo
-    } satisfies RatingHistoryPoint;
-  });
+    });
+
+    previousModeState[mode] = {
+      rating: ratingAfter,
+      rd: rdAfter
+    };
+  }
 
   const serializedMatches: ProfileMatch[] = matches.map((match) => ({
     id: match.id,
@@ -240,7 +285,27 @@ export async function getPlayerProfile(identifier: string) {
       ratingBefore: participant.ratingBefore,
       ratingAfter: participant.ratingAfter,
       rdBefore: participant.rdBefore,
-      rdAfter: participant.rdAfter
+      rdAfter: participant.rdAfter,
+      modeRatings:
+        participant.userId === player.id
+          ? {
+              overall: {
+                ratingBefore: participant.ratingBefore,
+                ratingAfter: participant.ratingAfter,
+                rdBefore: participant.rdBefore,
+                rdAfter: participant.rdAfter
+              },
+              singles: matchModeSnapshots.get(`${match.id}:singles`) ?? undefined,
+              doubles: matchModeSnapshots.get(`${match.id}:doubles`) ?? undefined
+            }
+          : {
+              overall: {
+                ratingBefore: participant.ratingBefore,
+                ratingAfter: participant.ratingAfter,
+                rdBefore: participant.rdBefore,
+                rdAfter: participant.rdAfter
+              }
+            }
     }))
   }));
 

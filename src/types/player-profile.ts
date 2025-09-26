@@ -8,6 +8,11 @@ export interface ProfileMatchParticipant {
   ratingAfter: number | null;
   rdBefore: number | null;
   rdAfter: number | null;
+  modeRatings?: {
+    overall?: RatingSnapshot;
+    singles?: RatingSnapshot;
+    doubles?: RatingSnapshot;
+  };
 }
 
 export interface ProfileMatch {
@@ -17,4 +22,11 @@ export interface ProfileMatch {
   team2Score: number;
   playedAt: string;
   participants: ProfileMatchParticipant[];
+}
+
+export interface RatingSnapshot {
+  ratingBefore: number | null;
+  ratingAfter: number;
+  rdBefore: number | null;
+  rdAfter: number;
 }

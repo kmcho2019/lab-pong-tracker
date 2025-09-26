@@ -112,6 +112,25 @@ describe('getLeaderboard', () => {
 
 describe('getPlayerProfile', () => {
   it('summarises per-mode ratings and builds timeline metadata', async () => {
+    const matchStub = {
+      id: 'match-1',
+      matchType: MatchType.SINGLES,
+      team1Score: 11,
+      team2Score: 7,
+      participants: [
+        {
+          userId: baseUser.id,
+          team: { teamNo: 1 },
+          user: { displayName: baseUser.displayName }
+        },
+        {
+          userId: 'opponent-1',
+          team: { teamNo: 2 },
+          user: { displayName: 'Opponent One' }
+        }
+      ]
+    };
+
     prismaMock.user.findFirst.mockResolvedValueOnce({
       ...baseUser,
       ratingHistory: [
@@ -120,24 +139,20 @@ describe('getPlayerProfile', () => {
           playedAt: new Date('2025-09-01T10:00:00Z'),
           rating: 1510,
           rd: 58,
-          match: {
-            id: 'match-1',
-            matchType: MatchType.SINGLES,
-            team1Score: 11,
-            team2Score: 7,
-            participants: [
-              {
-                userId: baseUser.id,
-                team: { teamNo: 1 },
-                user: { displayName: baseUser.displayName }
-              },
-              {
-                userId: 'opponent-1',
-                team: { teamNo: 2 },
-                user: { displayName: 'Opponent One' }
-              }
-            ]
-          }
+          deltaMu: (1510 - 1500) / 173.7178,
+          deltaSigma: 0,
+          mode: 'OVERALL',
+          match: matchStub
+        },
+        {
+          matchId: 'match-1',
+          playedAt: new Date('2025-09-01T10:00:00Z'),
+          rating: 1520,
+          rd: 52,
+          deltaMu: (1520 - 1500) / 173.7178,
+          deltaSigma: 0,
+          mode: 'SINGLES',
+          match: matchStub
         }
       ]
     });
@@ -189,9 +204,18 @@ describe('getPlayerProfile', () => {
     expect(summary.doublesRating).toBe(baseUser.doublesRating);
 
     const timeline = profile!.ratingTimeline;
-    expect(timeline).toHaveLength(1);
-    expect(timeline[0].matchInfo?.result).toBe('Win');
-    expect(timeline[0].matchInfo?.opponents).toEqual(['Opponent One']);
-    expect(timeline[0].rd).toBe(58);
+    expect(timeline).toHaveLength(2);
+    const overallPoint = timeline.find((point) => point.mode === 'overall');
+    const singlesPoint = timeline.find((point) => point.mode === 'singles');
+    expect(overallPoint?.matchInfo?.result).toBe('Win');
+    expect(overallPoint?.matchInfo?.opponents).toEqual(['Opponent One']);
+    expect(overallPoint?.rd).toBe(58);
+    expect(overallPoint?.rating).toBe(1510);
+    expect(singlesPoint?.rating).toBe(1520);
+    expect(singlesPoint?.rd).toBe(52);
+
+    const matchParticipant = profile!.matches[0].participants.find((participant) => participant.userId === baseUser.id);
+    expect(matchParticipant?.modeRatings?.singles?.ratingAfter).toBe(1520);
+    expect(matchParticipant?.modeRatings?.overall?.ratingAfter).toBe(1510);
   });
 });

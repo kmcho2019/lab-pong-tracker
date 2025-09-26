@@ -10,21 +10,24 @@ describe('rating sparkline chart builder', () => {
       rating: 1500,
       rd: 60,
       matchId: 'm1',
-      matchInfo: null
+      matchInfo: null,
+      mode: 'overall'
     },
     {
       playedAt: '2025-09-03T11:30:00Z',
       rating: 1510,
       rd: 55,
       matchId: 'm2',
-      matchInfo: null
+      matchInfo: null,
+      mode: 'overall'
     },
     {
       playedAt: '2025-09-05T09:15:00Z',
       rating: 1495,
       rd: 62,
       matchId: 'm3',
-      matchInfo: null
+      matchInfo: null,
+      mode: 'overall'
     }
   ];
 

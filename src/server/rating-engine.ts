@@ -1,4 +1,4 @@
-import { MatchStatus, MatchType } from '@prisma/client';
+import { MatchStatus, MatchType, RatingHistoryMode } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { combineTeam, glicko2Update, type RatingState } from '@/lib/glicko2';
 
@@ -94,8 +94,11 @@ export async function applyRatingsForMatch(matchId: string) {
       username: string;
       displayName: string;
       outcome: 'WIN' | 'LOSS';
-      before: { rating: number; rd: number };
-      after: { rating: number; rd: number };
+      modes: Array<{
+        mode: RatingHistoryMode;
+        before: { rating: number; rd: number };
+        after: { rating: number; rd: number };
+      }>;
     }> = [];
 
     for (const participant of match.participants) {
@@ -103,13 +106,42 @@ export async function applyRatingsForMatch(matchId: string) {
       const isTeam1 = participant.team?.teamNo === 1;
       const result = team1Won && isTeam1 ? 1 : team2Won && !isTeam1 ? 1 : 0;
       const opponentOverall = isTeam1 ? team2OverallState : team1OverallState;
-      const updateOverall = glicko2Update(buildModeState(user, 'overall'), [
+      const overallBeforeState = buildModeState(user, 'overall');
+      const updateOverall = glicko2Update(overallBeforeState, [
         {
           rating: opponentOverall.rating,
           rd: opponentOverall.rd,
           score: result
         }
       ]);
+
+      let singlesBeforeState: RatingState | null = null;
+      let singlesUpdate: ReturnType<typeof glicko2Update> | null = null;
+      if (match.matchType === MatchType.SINGLES && team1SinglesState && team2SinglesState) {
+        singlesBeforeState = buildModeState(user, 'singles');
+        const opponentSingles = isTeam1 ? team2SinglesState : team1SinglesState;
+        singlesUpdate = glicko2Update(singlesBeforeState, [
+          {
+            rating: opponentSingles.rating,
+            rd: opponentSingles.rd,
+            score: result
+          }
+        ]);
+      }
+
+      let doublesBeforeState: RatingState | null = null;
+      let doublesUpdate: ReturnType<typeof glicko2Update> | null = null;
+      if (match.matchType === MatchType.DOUBLES && team1DoublesState && team2DoublesState) {
+        doublesBeforeState = buildModeState(user, 'doubles');
+        const opponentDoubles = isTeam1 ? team2DoublesState : team1DoublesState;
+        doublesUpdate = glicko2Update(doublesBeforeState, [
+          {
+            rating: opponentDoubles.rating,
+            rd: opponentDoubles.rd,
+            score: result
+          }
+        ]);
+      }
 
       await tx.matchParticipant.update({
         where: { id: participant.id },
@@ -137,16 +169,7 @@ export async function applyRatingsForMatch(matchId: string) {
         }
       };
 
-      if (match.matchType === MatchType.SINGLES && team1SinglesState && team2SinglesState) {
-        const opponentSingles = isTeam1 ? team2SinglesState : team1SinglesState;
-        const singlesUpdate = glicko2Update(buildModeState(user, 'singles'), [
-          {
-            rating: opponentSingles.rating,
-            rd: opponentSingles.rd,
-            score: result
-          }
-        ]);
-
+      if (singlesUpdate && singlesBeforeState) {
         Object.assign(userUpdate.data, {
           singlesRating: singlesUpdate.rating,
           singlesRd: singlesUpdate.rd,
@@ -161,16 +184,7 @@ export async function applyRatingsForMatch(matchId: string) {
         });
       }
 
-      if (match.matchType === MatchType.DOUBLES && team1DoublesState && team2DoublesState) {
-        const opponentDoubles = isTeam1 ? team2DoublesState : team1DoublesState;
-        const doublesUpdate = glicko2Update(buildModeState(user, 'doubles'), [
-          {
-            rating: opponentDoubles.rating,
-            rd: opponentDoubles.rd,
-            score: result
-          }
-        ]);
-
+      if (doublesUpdate && doublesBeforeState) {
         Object.assign(userUpdate.data, {
           doublesRating: doublesUpdate.rating,
           doublesRd: doublesUpdate.rd,
@@ -187,26 +201,87 @@ export async function applyRatingsForMatch(matchId: string) {
 
       await tx.user.update(userUpdate);
 
-      await tx.ratingHistory.create({
-        data: {
-          userId: user.id,
-          matchId: match.id,
+      const historyEntries: Array<{ mode: RatingHistoryMode; rating: number; rd: number; volatility: number; deltaMu: number; deltaSigma: number }> = [
+        {
+          mode: RatingHistoryMode.OVERALL,
           rating: updateOverall.rating,
           rd: updateOverall.rd,
           volatility: updateOverall.volatility,
           deltaMu: updateOverall.deltaMu,
-          deltaSigma: updateOverall.deltaSigma,
-          playedAt: timestamp
+          deltaSigma: updateOverall.deltaSigma
         }
+      ];
+
+      if (singlesUpdate) {
+        historyEntries.push({
+          mode: RatingHistoryMode.SINGLES,
+          rating: singlesUpdate.rating,
+          rd: singlesUpdate.rd,
+          volatility: singlesUpdate.volatility,
+          deltaMu: singlesUpdate.deltaMu,
+          deltaSigma: singlesUpdate.deltaSigma
+        });
+      }
+
+      if (doublesUpdate) {
+        historyEntries.push({
+          mode: RatingHistoryMode.DOUBLES,
+          rating: doublesUpdate.rating,
+          rd: doublesUpdate.rd,
+          volatility: doublesUpdate.volatility,
+          deltaMu: doublesUpdate.deltaMu,
+          deltaSigma: doublesUpdate.deltaSigma
+        });
+      }
+
+      await tx.ratingHistory.createMany({
+        data: historyEntries.map((entry) => ({
+          userId: user.id,
+          matchId: match.id,
+          mode: entry.mode,
+          rating: entry.rating,
+          rd: entry.rd,
+          volatility: entry.volatility,
+          deltaMu: entry.deltaMu,
+          deltaSigma: entry.deltaSigma,
+          playedAt: timestamp
+        }))
       });
+
+      const modesSnapshot: Array<{
+        mode: RatingHistoryMode;
+        before: { rating: number; rd: number };
+        after: { rating: number; rd: number };
+      }> = [
+        {
+          mode: RatingHistoryMode.OVERALL,
+          before: { rating: user.glickoRating, rd: user.glickoRd },
+          after: { rating: updateOverall.rating, rd: updateOverall.rd }
+        }
+      ];
+
+      if (singlesUpdate && singlesBeforeState) {
+        modesSnapshot.push({
+          mode: RatingHistoryMode.SINGLES,
+          before: { rating: singlesBeforeState.rating, rd: singlesBeforeState.rd },
+          after: { rating: singlesUpdate.rating, rd: singlesUpdate.rd }
+        });
+      }
+
+      if (doublesUpdate && doublesBeforeState) {
+        modesSnapshot.push({
+          mode: RatingHistoryMode.DOUBLES,
+          before: { rating: doublesBeforeState.rating, rd: doublesBeforeState.rd },
+          after: { rating: doublesUpdate.rating, rd: doublesUpdate.rd }
+        });
+      }
 
       ratingSnapshots.push({
         userId: user.id,
         username: user.username,
         displayName: user.displayName,
         outcome: result === 1 ? 'WIN' : 'LOSS',
-        before: { rating: user.glickoRating, rd: user.glickoRd },
-        after: { rating: updateOverall.rating, rd: updateOverall.rd }
+        modes: modesSnapshot
       });
     }
 
@@ -225,10 +300,13 @@ export async function applyRatingsForMatch(matchId: string) {
             username: snapshot.username,
             displayName: snapshot.displayName,
             outcome: snapshot.outcome,
-            before: snapshot.before,
-            after: snapshot.after,
-            delta: Number((snapshot.after.rating - snapshot.before.rating).toFixed(4)),
-            rdChange: Number((snapshot.after.rd - snapshot.before.rd).toFixed(4))
+            modes: snapshot.modes.map((modeSnapshot) => ({
+              mode: modeSnapshot.mode,
+              before: modeSnapshot.before,
+              after: modeSnapshot.after,
+              delta: Number((modeSnapshot.after.rating - modeSnapshot.before.rating).toFixed(4)),
+              rdChange: Number((modeSnapshot.after.rd - modeSnapshot.before.rd).toFixed(4))
+            }))
           }))
         }
       }

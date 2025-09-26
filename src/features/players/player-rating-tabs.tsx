@@ -21,9 +21,9 @@ interface PlayerRatingTabsProps {
 export function PlayerRatingTabs({ playerId, timeline, matches, mode, onModeChange }: PlayerRatingTabsProps) {
   const timelineByMode = useMemo(
     () => ({
-      overall: timeline,
-      singles: timeline.filter((point) => point.matchInfo?.matchType === 'SINGLES'),
-      doubles: timeline.filter((point) => point.matchInfo?.matchType === 'DOUBLES')
+      overall: timeline.filter((point) => point.mode === 'overall'),
+      singles: timeline.filter((point) => point.mode === 'singles'),
+      doubles: timeline.filter((point) => point.mode === 'doubles')
     }),
     [timeline]
   );
@@ -102,11 +102,23 @@ export function PlayerRatingTabs({ playerId, timeline, matches, mode, onModeChan
                 const playerOnTeam1 = team1.some((participant) => participant.userId === playerId);
                 const playerParticipant = match.participants.find((participant) => participant.userId === playerId);
                 const opponentTeam = playerOnTeam1 ? team2 : team1;
+                const participantRatings = playerParticipant?.modeRatings;
+                const snapshot =
+                  participantRatings?.[mode] ??
+                  (mode === 'overall'
+                    ? participantRatings?.overall ?? {
+                        ratingBefore: playerParticipant?.ratingBefore ?? null,
+                        ratingAfter: playerParticipant?.ratingAfter ?? null,
+                        rdBefore: playerParticipant?.rdBefore ?? null,
+                        rdAfter: playerParticipant?.rdAfter ?? null
+                      }
+                    : undefined);
+
                 const hasRatings =
-                  typeof playerParticipant?.ratingBefore === 'number' &&
-                  typeof playerParticipant?.ratingAfter === 'number';
-                const beforeValue = hasRatings ? Number(playerParticipant?.ratingBefore) : null;
-                const afterValue = hasRatings ? Number(playerParticipant?.ratingAfter) : null;
+                  typeof snapshot?.ratingBefore === 'number' &&
+                  typeof snapshot?.ratingAfter === 'number';
+                const beforeValue = hasRatings ? Number(snapshot?.ratingBefore) : null;
+                const afterValue = hasRatings ? Number(snapshot?.ratingAfter) : null;
                 const delta =
                   hasRatings && beforeValue !== null && afterValue !== null
                     ? Math.round(afterValue - beforeValue)

@@ -167,6 +167,7 @@ model RatingHistory {
   id         String   @id @default(cuid())
   userId     String
   matchId    String?
+  mode       RatingHistoryMode @default(OVERALL)
   rating     Float
   rd         Float
   volatility Float
@@ -180,6 +181,12 @@ model RatingHistory {
 
   @@index([userId])
   @@index([matchId])
+}
+
+enum RatingHistoryMode {
+  OVERALL
+  SINGLES
+  DOUBLES
 }
 
 model AuditLog {

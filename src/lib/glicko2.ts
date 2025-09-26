@@ -1,4 +1,4 @@
-const SCALE = 173.7178;
+export const GLICKO_SCALE = 173.7178;
 const DEFAULT_TAU = 0.5;
 const DEFAULT_MAX_RD = 350;
 
@@ -20,19 +20,19 @@ export interface RatingUpdate extends RatingState {
 }
 
 function toMu(rating: number) {
-  return (rating - 1500) / SCALE;
+  return (rating - 1500) / GLICKO_SCALE;
 }
 
 function toPhi(rd: number) {
-  return rd / SCALE;
+  return rd / GLICKO_SCALE;
 }
 
 function fromMu(mu: number) {
-  return mu * SCALE + 1500;
+  return mu * GLICKO_SCALE + 1500;
 }
 
 function fromPhi(phi: number) {
-  return Math.min(phi * SCALE, DEFAULT_MAX_RD);
+  return Math.min(phi * GLICKO_SCALE, DEFAULT_MAX_RD);
 }
 
 function g(phi: number) {
