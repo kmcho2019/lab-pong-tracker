@@ -12,6 +12,7 @@ export interface RatingHistoryMatchInfo {
 export interface RatingHistoryPoint {
   playedAt: Date | string | null;
   rating: number;
+  rd: number;
   matchId?: string | null;
   matchInfo: RatingHistoryMatchInfo | null;
 }

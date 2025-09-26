@@ -89,6 +89,14 @@ export async function applyRatingsForMatch(matchId: string) {
 
   await prisma.$transaction(async (tx) => {
     const timestamp = match.playedAt;
+    const ratingSnapshots: Array<{
+      userId: string;
+      username: string;
+      displayName: string;
+      outcome: 'WIN' | 'LOSS';
+      before: { rating: number; rd: number };
+      after: { rating: number; rd: number };
+    }> = [];
 
     for (const participant of match.participants) {
       const user = participant.user;
@@ -191,6 +199,39 @@ export async function applyRatingsForMatch(matchId: string) {
           playedAt: timestamp
         }
       });
+
+      ratingSnapshots.push({
+        userId: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        outcome: result === 1 ? 'WIN' : 'LOSS',
+        before: { rating: user.glickoRating, rd: user.glickoRd },
+        after: { rating: updateOverall.rating, rd: updateOverall.rd }
+      });
     }
+
+    await tx.auditLog.create({
+      data: {
+        matchId: match.id,
+        message: 'RATINGS_APPLIED',
+        metadata: {
+          matchId: match.id,
+          playedAt: timestamp.toISOString(),
+          matchType: match.matchType,
+          team1Score: match.team1Score,
+          team2Score: match.team2Score,
+          participants: ratingSnapshots.map((snapshot) => ({
+            userId: snapshot.userId,
+            username: snapshot.username,
+            displayName: snapshot.displayName,
+            outcome: snapshot.outcome,
+            before: snapshot.before,
+            after: snapshot.after,
+            delta: Number((snapshot.after.rating - snapshot.before.rating).toFixed(4)),
+            rdChange: Number((snapshot.after.rd - snapshot.before.rd).toFixed(4))
+          }))
+        }
+      }
+    });
   });
 }

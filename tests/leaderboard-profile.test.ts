@@ -119,6 +119,7 @@ describe('getPlayerProfile', () => {
           matchId: 'match-1',
           playedAt: new Date('2025-09-01T10:00:00Z'),
           rating: 1510,
+          rd: 58,
           match: {
             id: 'match-1',
             matchType: MatchType.SINGLES,
@@ -191,5 +192,6 @@ describe('getPlayerProfile', () => {
     expect(timeline).toHaveLength(1);
     expect(timeline[0].matchInfo?.result).toBe('Win');
     expect(timeline[0].matchInfo?.opponents).toEqual(['Opponent One']);
+    expect(timeline[0].rd).toBe(58);
   });
 });

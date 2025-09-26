@@ -192,6 +192,7 @@ export async function getPlayerProfile(identifier: string) {
       return {
         playedAt: entry.playedAt ? entry.playedAt.toISOString() : null,
         rating: entry.rating,
+        rd: entry.rd,
         matchId: entry.matchId,
         matchInfo: null
       } satisfies RatingHistoryPoint;
@@ -218,6 +219,7 @@ export async function getPlayerProfile(identifier: string) {
     return {
       playedAt: entry.playedAt ? entry.playedAt.toISOString() : null,
       rating: entry.rating,
+      rd: entry.rd,
       matchId: entry.matchId,
       matchInfo
     } satisfies RatingHistoryPoint;

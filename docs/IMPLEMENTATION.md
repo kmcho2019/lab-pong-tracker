@@ -51,6 +51,8 @@ Refer back to `README.md` for setup/deployment instructions and to `AGENTS.md` f
 - History and profile tables now show rating before → after plus deltas for each participant.
 - Player sparkline renders axes, gridlines, hover tooltip, and KST timestamps for easier analysis.
 - Head-to-head summaries include singles-only breakdown built in `getPlayerProfile`.
+- Sparkline now supports switching the x-axis between chronological time and match index with a ±2 RD confidence band shaded for each point.
+- Rating updates append a `RATINGS_APPLIED` audit log per match capturing before/after rating + RD deltas for every participant.
 
 ## Admin Match Management
 
